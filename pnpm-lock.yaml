@@ -131,6 +131,9 @@ importers:
         specifier: ^5.1.1
         version: 5.1.1(encoding@0.1.13)
     devDependencies:
+      '@napi-rs/canvas':
+        specifier: ^0.1.65
+        version: 0.1.100
       '@types/node':
         specifier: ^22.9.0
         version: 22.20.1
@@ -5191,7 +5194,6 @@ snapshots:
       '@napi-rs/canvas-linux-x64-musl': 0.1.100
       '@napi-rs/canvas-win32-arm64-msvc': 0.1.100
       '@napi-rs/canvas-win32-x64-msvc': 0.1.100
-    optional: true
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
