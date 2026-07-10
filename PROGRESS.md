@@ -62,3 +62,22 @@ Known gaps / deferred:
 - Shared `packages/ui-components` still empty — components live in apps/desktop for now; extraction deferred until mobile needs them
 
 Offline verification: yes — dev server stopped, app launched from built output with no network; all Phase 2 features are local (pdf.js worker + ops worker bundled, fonts bundled).
+
+## Phase 3 — Editing tools (2026-07-10)
+Shipped:
+- Core (`packages/core/src/editing/`): addTextItems, addMarkups (highlight/underline/strikethrough), addStrokes (freehand → SVG path), addStamps (image placement, also the future signature pipeline), addPageNumbers (6 position presets + format string), addWatermark (diagonal text/image, opacity), cropPages, and **true redaction** — redactRegions/replacePagesWithImages rasterize the page at 2x, paint the regions black, and replace the entire original page with the bitmap so no content stream survives
+- Desktop viewer gained a full edit mode: Text (click-to-place inline inputs), Draw (pointer strokes with live SVG preview), Markup (pdf.js TextLayer + real text selection → rects), Image stamp (drag/resize box), Crop (rubber-band rect, all-pages toggle), Redact (multiple rects, double-click to remove, confirm dialog stating the pages-become-images tradeoff)
+- Page numbers + Watermark dialogs on the document toolbar
+- All ops run through the worker; redaction rasterizes in the renderer (reusing the pdf.js cache) and replaces pages in the worker
+
+Tested:
+- 32 core unit tests pass, including the Phase 3 acceptance test: after redactRegions, extractText finds NOTHING on the redacted page (and untouched pages keep their text)
+- Same acceptance re-proven through the real UI: opened doc → drew redact rect over the headline → Apply → confirm → Save → reloaded saved bytes → page 1 text extraction is empty, page 2 intact
+- Text tool and watermark also verified end-to-end through the UI (saved bytes contain "UI-ADDED-TEXT" and "CONFIDENTIAL")
+
+Known gaps / deferred:
+- Draw color is fixed dark-ink for now (width selectable); color picker later
+- Markup selection preview shows a pending count rather than painted rects pre-commit
+- Pressure-sensitive stroke width not implemented (pointer `pressure` noted for later)
+
+Offline verification: yes — all editing is pdf-lib/pdf.js local computation; no network calls introduced (CSP still default-src 'self').

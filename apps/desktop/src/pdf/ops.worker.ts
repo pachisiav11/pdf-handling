@@ -3,17 +3,33 @@
  * blocks during multi-page work (build guide: performance requirements).
  */
 import {
+  addMarkups,
+  addPageNumbers,
+  addStamps,
+  addStrokes,
+  addTextItems,
+  addWatermark,
   compressPdf,
+  cropPages,
   deletePages,
   extractPages,
   mergePdfs,
   reorderPages,
+  replacePagesWithImages,
   rotatePages,
   splitByRange,
   splitToSinglePages,
   type CompressPreset,
   type ImageReencoder,
+  type Markup,
+  type PageImageReplacement,
+  type PageNumberOptions,
+  type Rect,
   type RotationDelta,
+  type Stamp,
+  type Stroke,
+  type TextItem,
+  type WatermarkOptions,
 } from '@pdfx/core';
 
 export type OpRequest =
@@ -24,7 +40,15 @@ export type OpRequest =
   | { id: number; op: 'extractPages'; bytes: Uint8Array; indices: number[] }
   | { id: number; op: 'reorderPages'; bytes: Uint8Array; newOrder: number[] }
   | { id: number; op: 'rotatePages'; bytes: Uint8Array; delta: RotationDelta; indices?: number[] }
-  | { id: number; op: 'compress'; bytes: Uint8Array; preset: CompressPreset };
+  | { id: number; op: 'compress'; bytes: Uint8Array; preset: CompressPreset }
+  | { id: number; op: 'addText'; bytes: Uint8Array; items: TextItem[] }
+  | { id: number; op: 'addMarkups'; bytes: Uint8Array; markups: Markup[] }
+  | { id: number; op: 'addStrokes'; bytes: Uint8Array; strokes: Stroke[] }
+  | { id: number; op: 'addStamps'; bytes: Uint8Array; stamps: Stamp[] }
+  | { id: number; op: 'pageNumbers'; bytes: Uint8Array; options: PageNumberOptions }
+  | { id: number; op: 'watermark'; bytes: Uint8Array; options: WatermarkOptions }
+  | { id: number; op: 'crop'; bytes: Uint8Array; box: Rect; indices?: number[] }
+  | { id: number; op: 'replacePages'; bytes: Uint8Array; replacements: PageImageReplacement[] };
 
 export type OpResponse =
   | { id: number; ok: true; bytes: Uint8Array }
@@ -66,6 +90,22 @@ async function run(req: OpRequest): Promise<Uint8Array> {
       return rotatePages(req.bytes, req.delta, req.indices);
     case 'compress':
       return compressPdf(req.bytes, req.preset, reencoder);
+    case 'addText':
+      return addTextItems(req.bytes, req.items);
+    case 'addMarkups':
+      return addMarkups(req.bytes, req.markups);
+    case 'addStrokes':
+      return addStrokes(req.bytes, req.strokes);
+    case 'addStamps':
+      return addStamps(req.bytes, req.stamps);
+    case 'pageNumbers':
+      return addPageNumbers(req.bytes, req.options);
+    case 'watermark':
+      return addWatermark(req.bytes, req.options);
+    case 'crop':
+      return cropPages(req.bytes, req.box, req.indices);
+    case 'replacePages':
+      return replacePagesWithImages(req.bytes, req.replacements);
   }
 }
 

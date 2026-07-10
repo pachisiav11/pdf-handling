@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import type { NumberPosition } from '@pdfx/core';
 import { ops } from '../pdf/opsClient';
-import { runExportOp, showNotice, useAppState, type DocState } from '../state/store';
+import { actions, runExportOp, showNotice, useAppState, type DocState } from '../state/store';
 import { saveBytesAs } from '../lib/files';
 
 /** Split dialog: extract a range to a new PDF, or every page to a zip. */
@@ -65,6 +66,108 @@ export function SplitDialog({ doc, onClose }: { doc: DocState; onClose: () => vo
             onClick={() => void run()}
           >
             Split &amp; save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Page numbers dialog: position preset + format string. */
+export function PageNumbersDialog({ onClose }: { onClose: () => void }) {
+  const [position, setPosition] = useState<NumberPosition>('bottom-center');
+  const [format, setFormat] = useState('Page {n} of {total}');
+
+  const run = async () => {
+    await actions.applyPageNumbers({ position, format });
+    onClose();
+  };
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog cropmarks" onClick={(e) => e.stopPropagation()}>
+        <h2>Add page numbers</h2>
+        <label>Position</label>
+        <select className="select" value={position} onChange={(e) => setPosition(e.target.value as NumberPosition)}>
+          <option value="bottom-center">Bottom center</option>
+          <option value="bottom-right">Bottom right</option>
+          <option value="bottom-left">Bottom left</option>
+          <option value="top-center">Top center</option>
+          <option value="top-right">Top right</option>
+          <option value="top-left">Top left</option>
+        </select>
+        <label>Format — {'{n}'} is the page, {'{total}'} the count</label>
+        <input className="input" value={format} onChange={(e) => setFormat(e.target.value)} />
+        <div className="row">
+          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn primary" onClick={() => void run()}>Add numbers</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Watermark dialog: diagonal text or image on every page. */
+export function WatermarkDialog({ onClose }: { onClose: () => void }) {
+  const [kind, setKind] = useState<'text' | 'image'>('text');
+  const [text, setText] = useState('CONFIDENTIAL');
+  const [opacity, setOpacity] = useState(0.15);
+  const [image, setImage] = useState<{ bytes: Uint8Array; type: 'png' | 'jpg'; name: string } | null>(null);
+
+  const run = async () => {
+    if (kind === 'text') {
+      await actions.applyWatermark({ text, opacity });
+    } else if (image) {
+      await actions.applyWatermark({ imageBytes: image.bytes, imageType: image.type, opacity });
+    }
+    onClose();
+  };
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div className="dialog cropmarks" onClick={(e) => e.stopPropagation()}>
+        <h2>Add watermark</h2>
+        <p className="hint">Applied diagonally to every page.</p>
+        <label>
+          <input type="radio" checked={kind === 'text'} onChange={() => setKind('text')} /> Text
+        </label>
+        {kind === 'text' && (
+          <input className="input" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
+        )}
+        <label>
+          <input type="radio" checked={kind === 'image'} onChange={() => setKind('image')} /> Image
+        </label>
+        {kind === 'image' && (
+          <input
+            type="file"
+            accept="image/png,image/jpeg"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              setImage({
+                bytes: new Uint8Array(await f.arrayBuffer()),
+                type: f.type === 'image/png' ? 'png' : 'jpg',
+                name: f.name,
+              });
+            }}
+          />
+        )}
+        <label>Opacity — {Math.round(opacity * 100)}%</label>
+        <input
+          type="range"
+          min={5}
+          max={60}
+          value={opacity * 100}
+          onChange={(e) => setOpacity(Number(e.target.value) / 100)}
+        />
+        <div className="row">
+          <button className="btn" onClick={onClose}>Cancel</button>
+          <button
+            className="btn primary"
+            disabled={kind === 'text' ? !text.trim() : !image}
+            onClick={() => void run()}
+          >
+            Apply watermark
           </button>
         </div>
       </div>

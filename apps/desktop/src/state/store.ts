@@ -1,7 +1,16 @@
 import { useSyncExternalStore } from 'react';
 import { getPageCount } from '@pdfx/core';
+import type {
+  Markup,
+  PageNumberOptions,
+  Rect,
+  Stamp,
+  Stroke,
+  TextItem,
+  WatermarkOptions,
+} from '@pdfx/core';
 import { ops } from '../pdf/opsClient';
-import { releaseRenderDoc } from '../pdf/render';
+import { rasterizeRedactedPage, releaseRenderDoc } from '../pdf/render';
 
 export interface DocState {
   id: string;
@@ -203,6 +212,37 @@ export const actions = {
   },
 
   markSaved: (id: string) => updateDoc(id, (d) => ({ ...d, dirty: false })),
+
+  // ---- editing (Phase 3) ----
+  applyText: (items: TextItem[]) =>
+    mutateActive(`Adding ${items.length} text item(s)`, (b) => ops.addText(b, items)),
+  applyMarkups: (markups: Markup[]) =>
+    mutateActive('Applying markup', (b) => ops.addMarkups(b, markups)),
+  applyStrokes: (strokes: Stroke[]) =>
+    mutateActive('Committing drawing', (b) => ops.addStrokes(b, strokes)),
+  applyStamps: (stamps: Stamp[]) =>
+    mutateActive('Placing image', (b) => ops.addStamps(b, stamps)),
+  applyPageNumbers: (options: PageNumberOptions) =>
+    mutateActive('Adding page numbers', (b) => ops.pageNumbers(b, options)),
+  applyWatermark: (options: WatermarkOptions) =>
+    mutateActive('Applying watermark', (b) => ops.watermark(b, options)),
+  applyCrop: (box: Rect, indices?: number[]) =>
+    mutateActive('Cropping', (b) => ops.crop(b, box, indices)),
+  applyRedaction: (regions: Array<{ pageIndex: number; rects: Rect[] }>) => {
+    const doc = activeDoc();
+    if (!doc) return Promise.resolve();
+    return mutateActive('Redacting (pages become images)', async (b) => {
+      const replacements = [];
+      for (const region of regions) {
+        if (!region.rects.length) continue;
+        replacements.push({
+          pageIndex: region.pageIndex,
+          png: await rasterizeRedactedPage(doc.id, doc.version, b, region.pageIndex, region.rects),
+        });
+      }
+      return ops.replacePages(b, replacements);
+    });
+  },
 };
 
 // ---- multi-doc / export operations (used by dialogs) ----

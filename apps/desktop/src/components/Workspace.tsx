@@ -9,11 +9,11 @@ import {
 import { openViaDialog, saveActiveDoc } from '../lib/files';
 import { ThumbnailGrid } from './ThumbnailGrid';
 import { Viewer } from './Viewer';
-import { MergeDialog, SplitDialog } from './dialogs';
+import { MergeDialog, PageNumbersDialog, SplitDialog, WatermarkDialog } from './dialogs';
 
 export function Workspace({ doc }: { doc: DocState }) {
   const { docs, selection, viewerPage } = useAppState();
-  const [dialog, setDialog] = useState<'split' | 'merge' | null>(null);
+  const [dialog, setDialog] = useState<'split' | 'merge' | 'pagenumbers' | 'watermark' | null>(null);
   const selCount = selection.length;
 
   return (
@@ -72,6 +72,12 @@ export function Workspace({ doc }: { doc: DocState }) {
           Split <kbd>Ctrl+Shift+S</kbd>
         </button>
         <CompressMenu />
+        <button className="btn" onClick={() => setDialog('pagenumbers')}>
+          Page numbers
+        </button>
+        <button className="btn" onClick={() => setDialog('watermark')} title="Add watermark (Ctrl+Shift+W)">
+          Watermark <kbd>Ctrl+Shift+W</kbd>
+        </button>
         <span className="spacer" />
 
         <button className="btn" disabled={!doc.history.length} onClick={() => actions.undo()}>
@@ -103,6 +109,8 @@ export function Workspace({ doc }: { doc: DocState }) {
 
       {dialog === 'split' && <SplitDialog doc={doc} onClose={() => setDialog(null)} />}
       {dialog === 'merge' && <MergeDialog onClose={() => setDialog(null)} />}
+      {dialog === 'pagenumbers' && <PageNumbersDialog onClose={() => setDialog(null)} />}
+      {dialog === 'watermark' && <WatermarkDialog onClose={() => setDialog(null)} />}
     </div>
   );
 }

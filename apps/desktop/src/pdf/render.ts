@@ -64,6 +64,36 @@ export function renderPage(
   return next;
 }
 
+/** Rasterize a page at 2x with redaction rects painted black → PNG bytes.
+    Rects are PDF points, bottom-left origin. Runs in the renderer where the
+    pdf.js document cache lives; the worker does the page replacement. */
+export async function rasterizeRedactedPage(
+  docId: string,
+  version: number,
+  bytes: Uint8Array,
+  pageIndex: number,
+  rects: Array<{ x: number; y: number; width: number; height: number }>,
+): Promise<Uint8Array> {
+  const doc = await getRenderDoc(docId, version, bytes);
+  const page = await doc.getPage(pageIndex + 1);
+  const scale = 2;
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  const ctx = canvas.getContext('2d')!;
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  const base = page.getViewport({ scale: 1 });
+  ctx.fillStyle = '#000';
+  for (const r of rects) {
+    ctx.fillRect(r.x * scale, (base.height - r.y - r.height) * scale, r.width * scale, r.height * scale);
+  }
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG encode failed'))), 'image/png'),
+  );
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
 /** Page aspect ratios (h/w) for layout before thumbnails render. */
 export async function pageAspects(doc: PDFDocumentProxy): Promise<number[]> {
   const aspects: number[] = [];

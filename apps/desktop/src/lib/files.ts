@@ -14,12 +14,12 @@ declare global {
 // window.__lastSaved so tests can reopen and verify them.
 if (import.meta.env.DEV && typeof window !== 'undefined' && !('pdfx' in window)) {
   (window as unknown as { __lastSaved?: Uint8Array }).__lastSaved = undefined;
-  window.pdfx = {
+  (window as Window).pdfx = {
     async openPdfs() {
       const res = await fetch('/dev-sample.pdf');
       return [{ fileName: 'dev-sample.pdf', filePath: 'DEV://dev-sample.pdf', bytes: await res.arrayBuffer() }];
     },
-    async savePdf(defaultName, bytes) {
+    async savePdf(defaultName: string, bytes: ArrayBuffer) {
       (window as unknown as { __lastSaved?: Uint8Array }).__lastSaved = new Uint8Array(bytes);
       return `DEV://${defaultName}`;
     },

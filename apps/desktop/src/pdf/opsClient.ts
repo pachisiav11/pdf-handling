@@ -46,4 +46,20 @@ export const ops = {
     call({ op: 'rotatePages', bytes: bytes.slice(), delta, indices }),
   compress: (bytes: Uint8Array, preset: 'low' | 'medium' | 'high') =>
     call({ op: 'compress', bytes: bytes.slice(), preset }),
+  addText: (bytes: Uint8Array, items: import('@pdfx/core').TextItem[]) =>
+    call({ op: 'addText', bytes: bytes.slice(), items }),
+  addMarkups: (bytes: Uint8Array, markups: import('@pdfx/core').Markup[]) =>
+    call({ op: 'addMarkups', bytes: bytes.slice(), markups }),
+  addStrokes: (bytes: Uint8Array, strokes: import('@pdfx/core').Stroke[]) =>
+    call({ op: 'addStrokes', bytes: bytes.slice(), strokes }),
+  addStamps: (bytes: Uint8Array, stamps: import('@pdfx/core').Stamp[]) =>
+    call({ op: 'addStamps', bytes: bytes.slice(), stamps }),
+  pageNumbers: (bytes: Uint8Array, options: import('@pdfx/core').PageNumberOptions) =>
+    call({ op: 'pageNumbers', bytes: bytes.slice(), options }),
+  watermark: (bytes: Uint8Array, options: import('@pdfx/core').WatermarkOptions) =>
+    call({ op: 'watermark', bytes: bytes.slice(), options }),
+  crop: (bytes: Uint8Array, box: import('@pdfx/core').Rect, indices?: number[]) =>
+    call({ op: 'crop', bytes: bytes.slice(), box, indices }),
+  replacePages: (bytes: Uint8Array, replacements: import('@pdfx/core').PageImageReplacement[]) =>
+    call({ op: 'replacePages', bytes: bytes.slice(), replacements }),
 };
