@@ -1,0 +1,11 @@
+{
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@pdfx/core": ["../../packages/core/src/index.ts"],
+      "@pdfx/core/*": ["../../packages/core/src/*"]
+    }
+  },
+  "include": ["src", "index.js"]
+}

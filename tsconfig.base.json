@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@pdfx/core": ["packages/core/src/index.ts"],
+      "@pdfx/core/*": ["packages/core/src/*"],
+      "@pdfx/ui": ["packages/ui-components/src/index.ts"],
+      "@pdfx/ui/*": ["packages/ui-components/src/*"]
+    }
+  }
+}

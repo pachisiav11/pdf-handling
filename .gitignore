@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+release/
+*.tsbuildinfo
+
+# Bundled native binaries — NOT committed (too large). See README "Native binaries" section
+# for the fetch script that downloads LibreOffice / Tesseract / Ghostscript / qpdf locally.
+apps/desktop/resources/bin/
+apps/desktop/resources/libreoffice/
+apps/desktop/resources/tesseract/
+apps/desktop/resources/ghostscript/
+apps/desktop/resources/qpdf/
+*.traineddata
+
+# Android / React Native
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/android/build/
+apps/mobile/android/local.properties
+apps/mobile/android/app/release/
+*.keystore
+!debug.keystore
+
+# Logs & OS junk
+*.log
+.DS_Store
+Thumbs.db
+
+# Env / editor
+.env
+.env.*
+.idea/
+.vscode/
+.claude/
