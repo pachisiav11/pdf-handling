@@ -81,3 +81,22 @@ Known gaps / deferred:
 - Pressure-sensitive stroke width not implemented (pointer `pressure` noted for later)
 
 Offline verification: yes — all editing is pdf-lib/pdf.js local computation; no network calls introduced (CSP still default-src 'self').
+
+## Phase 4 — Forms & signatures (2026-07-10)
+Shipped:
+- Core `forms/fill.ts`: listFormFields (type, value, page, rect, editability for text/checkbox/radio/dropdown/option-list) and fillFormFields (text + checkbox, regenerates appearances); `forms/create.ts`: createFormFields (text field + checkbox, unique-name enforced)
+- Desktop Forms panel: detects and lists every AcroForm field, editable inputs for supported types, unsupported types shown read-only with their type label, Apply batches changes through the worker
+- Field tool in the viewer: draw a rectangle → name it → creates a real AcroForm text field/checkbox there
+- SignatureDialog (Sign + Initials slots): Draw (pointer pad with ink trimming), Type (bundled Caveat handwriting font → canvas), Upload; last-used image persisted per slot in localStorage (device-local only) with a "Use saved" shortcut; placement reuses the viewer's stamp mode with drag/resize
+
+Tested:
+- 37 core unit tests pass (5 new form tests: list/fill/persist-on-reload/create-then-fill/duplicate-name rejection)
+- UI end-to-end: filled the AcroForm fixture through the Forms panel, saved, and read the values back with pdf.js's annotation layer (independent viewer engine, same as Firefox's PDF viewer): "Grace Hopper" / "Yes" ✓
+- Signature: typed signature in Caveat → placed via stamp mode → applied; "Use saved" persistence path verified; field creation verified (new field shows up in the panel and is fillable)
+- Fixed en route: CSP (default-src 'self') blocked fetch(data:) in the signature flow — switched to direct base64 decode
+
+Known gaps / deferred:
+- Radio/dropdown editing deferred (guide scopes v1 to text+checkbox); they list as read-only with values
+- A real third-party-app check (e.g. opening in Chrome/Adobe) is worth doing manually in Phase 6's packaged-build pass; pdf.js annotation readback is the automated stand-in
+
+Offline verification: yes — forms/signature paths are pure pdf-lib + canvas; signature images never leave localStorage.

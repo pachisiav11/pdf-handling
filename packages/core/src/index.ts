@@ -9,6 +9,8 @@ export * from './editing/pageNumbers';
 export * from './editing/watermark';
 export * from './editing/crop';
 export * from './editing/redact';
+export * from './forms/fill';
+export * from './forms/create';
 export * from './merge';
 export * from './split';
 export * from './pages';

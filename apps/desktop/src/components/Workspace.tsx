@@ -10,10 +10,15 @@ import { openViaDialog, saveActiveDoc } from '../lib/files';
 import { ThumbnailGrid } from './ThumbnailGrid';
 import { Viewer } from './Viewer';
 import { MergeDialog, PageNumbersDialog, SplitDialog, WatermarkDialog } from './dialogs';
+import { FormsPanel } from './FormsPanel';
+import { SignatureDialog } from './SignatureDialog';
 
 export function Workspace({ doc }: { doc: DocState }) {
   const { docs, selection, viewerPage } = useAppState();
-  const [dialog, setDialog] = useState<'split' | 'merge' | 'pagenumbers' | 'watermark' | null>(null);
+  const [dialog, setDialog] = useState<
+    'split' | 'merge' | 'pagenumbers' | 'watermark' | 'sign' | 'initials' | null
+  >(null);
+  const [formsOpen, setFormsOpen] = useState(false);
   const selCount = selection.length;
 
   return (
@@ -78,6 +83,15 @@ export function Workspace({ doc }: { doc: DocState }) {
         <button className="btn" onClick={() => setDialog('watermark')} title="Add watermark (Ctrl+Shift+W)">
           Watermark <kbd>Ctrl+Shift+W</kbd>
         </button>
+        <button className="btn" onClick={() => setFormsOpen((o) => !o)}>
+          Forms
+        </button>
+        <button className="btn" onClick={() => setDialog('sign')}>
+          Sign
+        </button>
+        <button className="btn" onClick={() => setDialog('initials')}>
+          Initials
+        </button>
         <span className="spacer" />
 
         <button className="btn" disabled={!doc.history.length} onClick={() => actions.undo()}>
@@ -97,6 +111,7 @@ export function Workspace({ doc }: { doc: DocState }) {
       <div className="work-main">
         <ThumbnailGrid doc={doc} />
         {viewerPage !== null && <Viewer doc={doc} page={viewerPage} />}
+        {formsOpen && <FormsPanel doc={doc} onClose={() => setFormsOpen(false)} />}
       </div>
 
       <div className="statusbar">
@@ -111,6 +126,8 @@ export function Workspace({ doc }: { doc: DocState }) {
       {dialog === 'merge' && <MergeDialog onClose={() => setDialog(null)} />}
       {dialog === 'pagenumbers' && <PageNumbersDialog onClose={() => setDialog(null)} />}
       {dialog === 'watermark' && <WatermarkDialog onClose={() => setDialog(null)} />}
+      {dialog === 'sign' && <SignatureDialog slot="signature" onClose={() => setDialog(null)} />}
+      {dialog === 'initials' && <SignatureDialog slot="initials" onClose={() => setDialog(null)} />}
     </div>
   );
 }

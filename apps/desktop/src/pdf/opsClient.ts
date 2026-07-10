@@ -4,29 +4,31 @@ import type { OpRequest, OpResponse } from './ops.worker';
 const worker = new Worker(new URL('./ops.worker.ts', import.meta.url), { type: 'module' });
 
 let nextId = 1;
-const pending = new Map<number, { resolve: (b: Uint8Array) => void; reject: (e: Error) => void }>();
+const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 
 worker.onmessage = (e: MessageEvent<OpResponse>) => {
   const res = e.data;
   const entry = pending.get(res.id);
   if (!entry) return;
   pending.delete(res.id);
-  if (res.ok) entry.resolve(res.bytes);
-  else entry.reject(new Error(res.message));
+  if (!res.ok) entry.reject(new Error(res.message));
+  else if ('bytes' in res) entry.resolve(res.bytes);
+  else entry.resolve(res.data);
 };
 
 // Omit over a discriminated union must distribute, or only common keys survive.
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
-function call(
-  req: DistributiveOmit<OpRequest, 'id'>,
-  transfer: ArrayBuffer[] = [],
-): Promise<Uint8Array> {
+function callRaw(req: DistributiveOmit<OpRequest, 'id'>): Promise<unknown> {
   const id = nextId++;
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
-    worker.postMessage({ ...req, id }, transfer);
+    worker.postMessage({ ...req, id });
   });
+}
+
+function call(req: DistributiveOmit<OpRequest, 'id'>): Promise<Uint8Array> {
+  return callRaw(req) as Promise<Uint8Array>;
 }
 
 // Bytes are copied (not transferred) so callers keep their working copy for undo.
@@ -62,4 +64,12 @@ export const ops = {
     call({ op: 'crop', bytes: bytes.slice(), box, indices }),
   replacePages: (bytes: Uint8Array, replacements: import('@pdfx/core').PageImageReplacement[]) =>
     call({ op: 'replacePages', bytes: bytes.slice(), replacements }),
+  listFields: (bytes: Uint8Array) =>
+    callRaw({ op: 'listFields', bytes: bytes.slice() }) as Promise<
+      import('@pdfx/core').FieldInfo[]
+    >,
+  fillFields: (bytes: Uint8Array, values: import('@pdfx/core').FieldValue[]) =>
+    call({ op: 'fillFields', bytes: bytes.slice(), values }),
+  createFields: (bytes: Uint8Array, specs: import('@pdfx/core').NewFieldSpec[]) =>
+    call({ op: 'createFields', bytes: bytes.slice(), specs }),
 };

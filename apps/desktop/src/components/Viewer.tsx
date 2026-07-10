@@ -3,11 +3,18 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { TextLayer } from 'pdfjs-dist';
 import type { Markup, MarkupKind, Rect, Stamp, Stroke, TextItem } from '@pdfx/core';
 import { getRenderDoc, renderPage } from '../pdf/render';
-import { actions, setViewerPage, showNotice, type DocState } from '../state/store';
+import {
+  actions,
+  clearStampRequest,
+  setViewerPage,
+  showNotice,
+  useAppState,
+  type DocState,
+} from '../state/store';
 
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
-type EditMode = 'text' | 'draw' | 'highlight' | 'stamp' | 'crop' | 'redact' | null;
+type EditMode = 'text' | 'draw' | 'highlight' | 'stamp' | 'crop' | 'redact' | 'field' | null;
 
 interface PendingText {
   x: number; // PDF pts (baseline-ish anchor: top-left converted on commit)
@@ -47,7 +54,30 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
   const [band, setBand] = useState<Rect | null>(null); // rubber band, CSS px
   const [cropAllPages, setCropAllPages] = useState(true);
   const [confirmRedact, setConfirmRedact] = useState(false);
+  const [fieldDraft, setFieldDraft] = useState<{ rect: Rect; name: string; kind: 'text' | 'checkbox' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { stampRequest } = useAppState();
+
+  // Signature/initials placement request from the toolbar dialogs.
+  useEffect(() => {
+    if (!stampRequest) return;
+    const bytes = stampRequest.bytes;
+    const url = URL.createObjectURL(new Blob([bytes.slice()], { type: 'image/png' }));
+    const img = new Image();
+    img.onload = () => {
+      const w = pageSize.w / (stampRequest.label === 'initials' ? 6 : 3.5);
+      const h = w * (img.height / img.width);
+      setMode('stamp');
+      setStamp({
+        rect: { x: pageSize.w / 2 - w / 2, y: pageSize.h / 3, width: w, height: h },
+        bytes,
+        type: 'png',
+        url,
+      });
+      clearStampRequest();
+    };
+    img.src = url;
+  }, [stampRequest, pageSize.w, pageSize.h]);
 
   const hasPending =
     texts.length > 0 || strokes.length > 0 || markups.length > 0 || !!stamp || rects.length > 0;
@@ -142,7 +172,7 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
       overlayRef.current!.setPointerCapture(e.pointerId);
       const p = cssToPdf(px, py);
       setLiveStroke([p]);
-    } else if (mode === 'crop' || mode === 'redact') {
+    } else if (mode === 'crop' || mode === 'redact' || mode === 'field') {
       overlayRef.current!.setPointerCapture(e.pointerId);
       dragStart.current = { px, py };
       setBand({ x: px, y: py, width: 0, height: 0 });
@@ -155,7 +185,7 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
     if (mode === 'draw' && liveStroke) {
       const p = cssToPdf(px, py);
       setLiveStroke((s) => (s ? [...s, p] : s));
-    } else if ((mode === 'crop' || mode === 'redact') && dragStart.current) {
+    } else if ((mode === 'crop' || mode === 'redact' || mode === 'field') && dragStart.current) {
       const s = dragStart.current;
       setBand({
         x: Math.min(s.px, px),
@@ -170,12 +200,16 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
     if (mode === 'draw' && liveStroke) {
       if (liveStroke.length > 1) setStrokes((s) => [...s, liveStroke]);
       setLiveStroke(null);
-    } else if ((mode === 'crop' || mode === 'redact') && band && dragStart.current) {
+    } else if ((mode === 'crop' || mode === 'redact' || mode === 'field') && band && dragStart.current) {
       if (band.width > 4 && band.height > 4) {
         const tl = cssToPdf(band.x, band.y);
         const br = cssToPdf(band.x + band.width, band.y + band.height);
         const pdfRect: Rect = { x: tl.x, y: br.y, width: br.x - tl.x, height: tl.y - br.y };
-        setRects((r) => (mode === 'crop' ? [pdfRect] : [...r, pdfRect]));
+        if (mode === 'field') {
+          setFieldDraft({ rect: pdfRect, name: '', kind: 'text' });
+        } else {
+          setRects((r) => (mode === 'crop' ? [pdfRect] : [...r, pdfRect]));
+        }
       }
       setBand(null);
       dragStart.current = null;
@@ -307,6 +341,7 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
         {toolBtn('stamp', 'Image')}
         {toolBtn('crop', 'Crop')}
         {toolBtn('redact', 'Redact')}
+        {toolBtn('field', 'Field')}
         {mode === 'highlight' && (
           <select className="select" value={markupKind} onChange={(e) => setMarkupKind(e.target.value as MarkupKind)}>
             <option value="highlight">Highlight</option>
@@ -443,7 +478,7 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
               })}
               {band && (
                 <div
-                  className={mode === 'crop' ? 'crop-rect cropmarks' : 'redact-rect'}
+                  className={mode === 'redact' ? 'redact-rect' : 'crop-rect cropmarks'}
                   style={{ left: band.x, top: band.y, width: band.width, height: band.height }}
                 />
               )}
@@ -467,6 +502,47 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
           e.target.value = '';
         }}
       />
+
+      {fieldDraft && (
+        <div className="dialog-backdrop" onClick={() => setFieldDraft(null)}>
+          <div className="dialog cropmarks" onClick={(e) => e.stopPropagation()}>
+            <h2>New form field</h2>
+            <label>Type</label>
+            <select
+              className="select"
+              value={fieldDraft.kind}
+              onChange={(e) => setFieldDraft({ ...fieldDraft, kind: e.target.value as 'text' | 'checkbox' })}
+            >
+              <option value="text">Text field</option>
+              <option value="checkbox">Checkbox</option>
+            </select>
+            <label>Field name</label>
+            <input
+              className="input"
+              value={fieldDraft.name}
+              placeholder="e.g. customer.name"
+              autoFocus
+              onChange={(e) => setFieldDraft({ ...fieldDraft, name: e.target.value })}
+            />
+            <div className="row">
+              <button className="btn" onClick={() => setFieldDraft(null)}>Cancel</button>
+              <button
+                className="btn primary"
+                disabled={!fieldDraft.name.trim()}
+                onClick={() => {
+                  void actions.createFields([
+                    { kind: fieldDraft.kind, name: fieldDraft.name.trim(), pageIndex: page, rect: fieldDraft.rect },
+                  ]);
+                  setFieldDraft(null);
+                  discard(false);
+                }}
+              >
+                Create field
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmRedact && (
         <div className="dialog-backdrop" onClick={() => setConfirmRedact(false)}>

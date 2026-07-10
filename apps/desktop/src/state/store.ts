@@ -1,7 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import { getPageCount } from '@pdfx/core';
 import type {
+  FieldValue,
   Markup,
+  NewFieldSpec,
   PageNumberOptions,
   Rect,
   Stamp,
@@ -31,6 +33,8 @@ export interface AppState {
   busy: string | null; // label of the running operation
   error: string | null;
   notice: string | null;
+  /** A signature/initials PNG waiting to be placed via the viewer's stamp mode. */
+  stampRequest: { bytes: Uint8Array; label: string } | null;
 }
 
 const MAX_HISTORY = 20;
@@ -43,6 +47,7 @@ let state: AppState = {
   busy: null,
   error: null,
   notice: null,
+  stampRequest: null,
 };
 
 const listeners = new Set<() => void>();
@@ -110,6 +115,18 @@ export function setSelection(selection: number[]): void {
 
 export function setViewerPage(page: number | null): void {
   emit({ viewerPage: page });
+}
+
+/** Ask the viewer to enter stamp-placement mode with this PNG (signature flow). */
+export function requestStampPlacement(bytes: Uint8Array, label: string): void {
+  emit({
+    stampRequest: { bytes, label },
+    viewerPage: state.viewerPage ?? 0, // open the viewer if it isn't
+  });
+}
+
+export function clearStampRequest(): void {
+  emit({ stampRequest: null });
 }
 
 export function clearError(): void {
@@ -228,6 +245,12 @@ export const actions = {
     mutateActive('Applying watermark', (b) => ops.watermark(b, options)),
   applyCrop: (box: Rect, indices?: number[]) =>
     mutateActive('Cropping', (b) => ops.crop(b, box, indices)),
+  // ---- forms (Phase 4) ----
+  fillFields: (values: FieldValue[]) =>
+    mutateActive(`Filling ${values.length} field(s)`, (b) => ops.fillFields(b, values)),
+  createFields: (specs: NewFieldSpec[]) =>
+    mutateActive('Creating form field', (b) => ops.createFields(b, specs)),
+
   applyRedaction: (regions: Array<{ pageIndex: number; rects: Rect[] }>) => {
     const doc = activeDoc();
     if (!doc) return Promise.resolve();

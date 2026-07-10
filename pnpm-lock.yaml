@@ -32,6 +32,9 @@ importers:
       '@fontsource/bricolage-grotesque':
         specifier: ^5.2.10
         version: 5.2.10
+      '@fontsource/caveat':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@fontsource/ibm-plex-mono':
         specifier: ^5.2.7
         version: 5.2.7
@@ -951,6 +954,9 @@ packages:
 
   '@fontsource/bricolage-grotesque@5.2.10':
     resolution: {integrity: sha512-V2xS+1P7C8IrSypXLUx/bLtX/LsTlYtV2k2CsU+S/0t8qepZ2hvKSlyJIx7Ub/iY8Bbnj+IjAuUF9nvFz+BbIg==}
+
+  '@fontsource/caveat@5.2.8':
+    resolution: {integrity: sha512-9fUUfFE2IQFKbx+xOcaeQxxmh8iJguEb8z+j1PeueO4UUx+XfT4pRm/B04ZDvFA794/iRxY/IibmP8ZKtIf4rw==}
 
   '@fontsource/ibm-plex-mono@5.2.7':
     resolution: {integrity: sha512-MKAb8qV+CaiMQn2B0dIi1OV3565NYzp3WN5b4oT6LTkk+F0jR6j0ZN+5BKJiIhffDC3rtBULsYZE65+0018z9w==}
@@ -5089,6 +5095,8 @@ snapshots:
   '@eslint/js@8.57.1': {}
 
   '@fontsource/bricolage-grotesque@5.2.10': {}
+
+  '@fontsource/caveat@5.2.8': {}
 
   '@fontsource/ibm-plex-mono@5.2.7': {}
 

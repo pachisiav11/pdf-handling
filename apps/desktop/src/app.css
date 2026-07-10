@@ -359,6 +359,67 @@
   background: rgba(41, 182, 232, 0.4);
 }
 
+/* ---- forms panel & signature pad (Phase 4) ---- */
+.forms-panel {
+  width: 320px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  overflow-y: auto;
+}
+.forms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.forms-empty {
+  padding: 16px 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.forms-list {
+  list-style: none;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.forms-list label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.forms-readonly {
+  font-size: 12px;
+  color: var(--faint);
+  font-style: italic;
+}
+.sig-pad {
+  width: 100%;
+  background: var(--paper);
+  border-radius: 4px;
+  touch-action: none;
+  cursor: crosshair;
+}
+.sig-preview {
+  margin-top: 12px;
+  min-height: 70px;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  color: #101418;
+  border-radius: 4px;
+  padding: 8px;
+}
+
 /* ---- status bar ---- */
 .statusbar {
   display: flex;

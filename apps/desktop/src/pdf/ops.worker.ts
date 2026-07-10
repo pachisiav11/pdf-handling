@@ -4,6 +4,12 @@
  */
 import {
   addMarkups,
+  createFormFields,
+  fillFormFields,
+  listFormFields,
+  type FieldInfo,
+  type FieldValue,
+  type NewFieldSpec,
   addPageNumbers,
   addStamps,
   addStrokes,
@@ -48,10 +54,14 @@ export type OpRequest =
   | { id: number; op: 'pageNumbers'; bytes: Uint8Array; options: PageNumberOptions }
   | { id: number; op: 'watermark'; bytes: Uint8Array; options: WatermarkOptions }
   | { id: number; op: 'crop'; bytes: Uint8Array; box: Rect; indices?: number[] }
-  | { id: number; op: 'replacePages'; bytes: Uint8Array; replacements: PageImageReplacement[] };
+  | { id: number; op: 'replacePages'; bytes: Uint8Array; replacements: PageImageReplacement[] }
+  | { id: number; op: 'listFields'; bytes: Uint8Array }
+  | { id: number; op: 'fillFields'; bytes: Uint8Array; values: FieldValue[] }
+  | { id: number; op: 'createFields'; bytes: Uint8Array; specs: NewFieldSpec[] };
 
 export type OpResponse =
   | { id: number; ok: true; bytes: Uint8Array }
+  | { id: number; ok: true; data: FieldInfo[] }
   | { id: number; ok: false; message: string };
 
 /** JPEG re-encoder backed by OffscreenCanvas (available in workers). */
@@ -72,8 +82,14 @@ const reencoder: ImageReencoder = async (jpegBytes, { maxDimension, quality }) =
   }
 };
 
-async function run(req: OpRequest): Promise<Uint8Array> {
+async function run(req: OpRequest): Promise<Uint8Array | { data: FieldInfo[] }> {
   switch (req.op) {
+    case 'listFields':
+      return { data: await listFormFields(req.bytes) };
+    case 'fillFields':
+      return fillFormFields(req.bytes, req.values);
+    case 'createFields':
+      return createFormFields(req.bytes, req.specs);
     case 'merge':
       return mergePdfs(req.sources);
     case 'splitRange':
@@ -112,9 +128,14 @@ async function run(req: OpRequest): Promise<Uint8Array> {
 self.onmessage = async (e: MessageEvent<OpRequest>) => {
   const req = e.data;
   try {
-    const bytes = await run(req);
-    const res: OpResponse = { id: req.id, ok: true, bytes };
-    (self as unknown as Worker).postMessage(res, [bytes.buffer as ArrayBuffer]);
+    const result = await run(req);
+    if (result instanceof Uint8Array) {
+      const res: OpResponse = { id: req.id, ok: true, bytes: result };
+      (self as unknown as Worker).postMessage(res, [result.buffer as ArrayBuffer]);
+    } else {
+      const res: OpResponse = { id: req.id, ok: true, data: result.data };
+      (self as unknown as Worker).postMessage(res);
+    }
   } catch (err) {
     const res: OpResponse = {
       id: req.id,
