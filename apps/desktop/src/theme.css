@@ -1,0 +1,170 @@
+/* PDFX — prepress / light-table theme.
+   The desk is dark graphite; paper (thumbnails, pages) is the brightest thing
+   on screen. Registration crop-marks are the selection language; CMYK inks
+   are the accent system: cyan = action/selection, magenta = destructive,
+   yellow = unsaved-changes. */
+
+:root {
+  --desk: #161a1e;
+  --desk-deep: #101316;
+  --panel: #1e242a;
+  --panel-2: #242c33;
+  --line: #2e3944;
+  --paper: #f6f4ee;
+  --ink: #e9e7e0;
+  --muted: #97a1aa;
+  --faint: #5c6770;
+  --cyan: #29b6e8;
+  --cyan-dim: #1a7ea3;
+  --magenta: #e64980;
+  --yellow: #ffd400;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --radius: 4px;
+
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--desk);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---- crop-mark corners (the signature element) ----
+   8 tiny gradient ticks positioned at the 4 corners. */
+.cropmarks {
+  --tick: var(--cyan);
+  --tick-len: 14px;
+  --tick-w: 2px;
+  background-image: linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick));
+  background-repeat: no-repeat;
+  background-size:
+    var(--tick-len) var(--tick-w), var(--tick-w) var(--tick-len),
+    var(--tick-len) var(--tick-w), var(--tick-w) var(--tick-len),
+    var(--tick-len) var(--tick-w), var(--tick-w) var(--tick-len),
+    var(--tick-len) var(--tick-w), var(--tick-w) var(--tick-len);
+  background-position:
+    top left, top left,
+    top right, top right,
+    bottom left, bottom left,
+    bottom right, bottom right;
+}
+
+/* ---- shared controls ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 13px;
+  transition: border-color 120ms, background 120ms;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--cyan-dim);
+  background: #29323b;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  color: #06232e;
+  font-weight: 600;
+}
+.btn.primary:hover:not(:disabled) {
+  background: #45c4ef;
+}
+.btn.danger:hover:not(:disabled) {
+  border-color: var(--magenta);
+  color: var(--magenta);
+}
+.btn kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+.select {
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.input {
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  background: var(--desk-deep);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  width: 100%;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--cyan);
+}

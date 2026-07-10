@@ -38,3 +38,27 @@ Known gaps / deferred:
 - FlateDecode (PNG-style) embedded images are not re-encoded by compress, only DCTDecode/JPEG — acceptable v1 scope, noted for later
 
 Offline verification: yes — unit tests exercise all Phase 1 functions with zero network access (pure local library calls; ran with Wi-Fi connected but no requests made — pdf-lib/pdf.js/fflate are fully local).
+
+## Phase 2 — Desktop UI for core tools (2026-07-10)
+Shipped:
+- "Prepress/light-table" visual identity (dark graphite desk, paper-white pages, CMYK accent system, crop-mark selection language; Bricolage Grotesque / Inter / IBM Plex Mono, bundled offline via @fontsource)
+- Home: drag-and-drop zone + tool cards (every tool ≤2 clicks)
+- Workspace: virtualized ThumbnailGrid (IntersectionObserver-driven; only near-viewport pages render), click/ctrl/shift selection, HTML5 drag-reorder with insertion markers, rotate/delete from toolbar + shortcuts
+- Single-page Viewer with zoom steps, Ctrl+scroll zoom, page paging (double-click a thumbnail)
+- Merge dialog (reorder open docs, merge, save), Split dialog (range → PDF, all pages → zip), Compress menu (3 presets; OffscreenCanvas JPEG re-encoder in the worker)
+- All mutations run in a renderer Web Worker (`ops.worker.ts`) — UI thread never blocks; per-doc session undo/redo (snapshot stack, cap 20)
+- Native open/save dialogs over contextIsolated IPC; multi-document tabs; unsaved-changes dot (process yellow); status bar with offline badge
+- Shortcuts wired per the audited table: Ctrl+O/S/Z/Y, Ctrl+R rotate, Ctrl+D & Delete
+
+Tested:
+- 23 unit tests pass incl. new 50-page perf budget: rotate 62ms / delete 50ms / reorder 31ms (budget 1000ms)
+- Full UI flow exercised in a browser harness against the real components (dev-only bridge shim): open → select → rotate → delete 5→4 pages → drag-reorder (3,4,5,1) → save (13ms) → reopen saved bytes → changes persisted
+- Electron app built and launched; window renders the full workspace
+- Fixed en route: React StrictMode double-render race on pdf.js canvases (renders now serialize per canvas), electron-vite main-entry filename mismatch
+
+Known gaps / deferred:
+- Browser-pane E2E was flaky due to the test pane running 4 duplicated app instances — proper Playwright-against-Electron E2E lands in Phase 8
+- Extract-pages UI and recent-files list not yet wired (core fn exists; UI in a later phase alongside storage spec)
+- Shared `packages/ui-components` still empty — components live in apps/desktop for now; extraction deferred until mobile needs them
+
+Offline verification: yes — dev server stopped, app launched from built output with no network; all Phase 2 features are local (pdf.js worker + ops worker bundled, fonts bundled).

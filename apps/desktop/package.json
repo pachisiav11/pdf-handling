@@ -11,7 +11,11 @@
     "package": "electron-vite build && electron-builder"
   },
   "dependencies": {
-    "@pdfx/core": "workspace:*"
+    "@fontsource/bricolage-grotesque": "^5.2.10",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/inter": "^5.2.8",
+    "@pdfx/core": "workspace:*",
+    "pdfjs-dist": "^4.8.69"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
