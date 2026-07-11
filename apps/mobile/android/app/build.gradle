@@ -50,6 +50,12 @@ react {
     //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
     // hermesFlags = ["-O", "-output-source-map"]
 
+    /* Hermes compiler — RN 0.86 ships hermesc in the separate `hermes-compiler`
+       package rather than react-native/sdks/hermesc. With pnpm's isolated
+       node_modules the default lookup misses it, so point at it explicitly.
+       %OS-BIN% is substituted with win64-bin / osx-bin / linux64-bin. */
+    hermesCommand = "$rootDir/../node_modules/hermes-compiler/hermesc/%OS-BIN%/hermesc"
+
     /* Autolinking */
     autolinkLibrariesWithApp()
 }

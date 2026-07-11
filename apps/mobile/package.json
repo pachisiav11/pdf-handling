@@ -11,8 +11,10 @@
   "dependencies": {
     "@pdfx/core": "workspace:*",
     "@react-native-documents/picker": "^10.1.1",
+    "hermes-compiler": "250829098.0.14",
     "react": "19.2.3",
     "react-native": "0.86.0",
+    "react-native-blob-util": "^0.22.2",
     "react-native-safe-area-context": "^5.5.2"
   },
   "devDependencies": {
@@ -22,6 +24,8 @@
     "@react-native-community/cli": "20.1.0",
     "@react-native-community/cli-platform-android": "20.1.0",
     "@react-native/babel-preset": "0.86.0",
+    "@react-native/codegen": "0.86.0",
+    "@react-native/gradle-plugin": "0.86.0",
     "@react-native/metro-config": "0.86.0",
     "@react-native/typescript-config": "0.86.0",
     "@types/react": "^19.2.0",

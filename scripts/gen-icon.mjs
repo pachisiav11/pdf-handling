@@ -81,6 +81,19 @@ function drawIcon(size) {
   return c;
 }
 
+/** Draw the icon clipped to a circle (Android round launcher variant). */
+function drawRoundIcon(size) {
+  const base = drawIcon(size);
+  const c = createCanvas(size, size);
+  const ctx = c.getContext('2d');
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(base, 0, 0);
+  return c;
+}
+
 /** Build a .ico containing PNG-compressed entries (valid for Vista+). */
 function buildIco(pngs) {
   const count = pngs.length;
@@ -114,4 +127,21 @@ const pngs = sizes.map((s) => ({ size: s, data: drawIcon(s).toBuffer('image/png'
 await writeFile(join(buildDir, 'icon.ico'), buildIco(pngs));
 await writeFile(join(buildDir, 'icon.png'), drawIcon(512).toBuffer('image/png'));
 await writeFile(join(buildDir, 'icon-1024.png'), drawIcon(1024).toBuffer('image/png'));
-console.log('icons written to', buildDir);
+console.log('desktop icons written to', buildDir);
+
+// ---- Android launcher icons (reuse the same prepress mark) ----
+const androidRes = join(root, 'apps', 'mobile', 'android', 'app', 'src', 'main', 'res');
+const densities = [
+  ['mdpi', 48],
+  ['hdpi', 72],
+  ['xhdpi', 96],
+  ['xxhdpi', 144],
+  ['xxxhdpi', 192],
+];
+for (const [name, px] of densities) {
+  const dir = join(androidRes, `mipmap-${name}`);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'ic_launcher.png'), drawIcon(px).toBuffer('image/png'));
+  await writeFile(join(dir, 'ic_launcher_round.png'), drawRoundIcon(px).toBuffer('image/png'));
+}
+console.log('android launcher icons written to', androidRes);

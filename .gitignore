@@ -22,6 +22,7 @@ apps/desktop/resources/qpdf/
 # Android / React Native
 apps/mobile/android/.gradle/
 apps/mobile/android/app/build/
+apps/mobile/android/app/.cxx/
 apps/mobile/android/build/
 apps/mobile/android/local.properties
 apps/mobile/android/app/release/

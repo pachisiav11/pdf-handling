@@ -1,6 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- INTERNET is required only so the debug build can reach the Metro dev
+         server. The app makes no network calls of its own — fully offline. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Legacy storage for saving to Downloads on Android 9 and older; on
+         Android 10+ MediaStore needs no permission. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 
     <application
       android:name=".MainApplication"

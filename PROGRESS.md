@@ -142,3 +142,29 @@ Known gaps / deferred:
 - Installer is too large to commit/upload to GitHub per project constraint — README documents the fetch-binaries + electron-builder build steps instead
 
 Offline verification: yes — packaged app runs with all helper binaries local; no network transport anywhere (logging is file-only, CSP default-src 'self').
+
+## Phase 7 — Mobile app (Android APK) (2026-07-11)
+Shipped:
+- `apps/mobile`: full React Native 0.86 app on the shared core. New lean core entry `@pdfx/core/mobile` re-exports only the pure `pdf-lib` operations (Phase-1 toolset + watermark + page numbers), so Metro never bundles the DOM/Node-only parts (pdfjs-dist, tesseract.js, @napi-rs/canvas). All PDF work runs in Hermes.
+- Tools on-device: open (system doc picker), merge (append a second PDF), split (range → saved to Downloads), delete, extract (→ Downloads), reorder (selected-to-front), rotate, compress, watermark, page numbers; undo/redo (20-deep snapshot stack); save to Downloads via MediaStore.
+- File I/O via `react-native-blob-util`; base64<->bytes done by hand (`src/lib/bytes.ts`) to avoid Hermes atob/btoa binary-string issues.
+- Prepress UI identity carried over: graphite desk, paper-white page tiles, cyan action / magenta destructive, registration crop-marks as the selection state.
+- App icon: the same code-generated PDFX mark, emitted to all Android mipmap densities (+ round variant) by `scripts/gen-icon.mjs`. App id `com.pdfxmobile`, label "PDFX".
+
+Rendering choice (per guide — document it): **deferred rendered page previews.** Neither `react-native-pdf` nor a `pdfjs-dist`-in-WebView layer is used in v1. The page grid shows numbered paper tiles, not rasterized page images. Rationale: RN 0.86 is new-architecture-only (no way to disable it), so every native module compiles C++ codegen through the NDK; keeping the native surface to a single well-worn module (`react-native-blob-util`) was the difference between a reliably-building APK and a fragile one on this Windows + pnpm + new-arch toolchain. Visual thumbnails/rendering are the first v1.1 mobile item.
+
+Tested (Pixel_Fold_API_35 emulator, API 35):
+- Debug build (Metro) end-to-end: opened a real 5-page PDF from the picker → grid showed 5 pages (proves blob-util read + pdf-lib parse on Hermes) → selected page 3, Delete → grid showed 4 pages → Save → wrote `pdfx-test-5page (1).pdf` to Downloads via MediaStore. Pulled it back and loaded with pdf-lib on the host: **valid PDF, 4 pages** — the on-device edit produced a correct result.
+- Release APK (`app-release.apk`, 18.7 MB, Hermes bytecode, debug-keystore signed): installed with Metro killed and `adb reverse` cleared — launches and renders from its bundled bundle, i.e. fully offline/self-contained.
+
+Toolchain notes (pnpm + RN new arch, resolved en route):
+- pnpm's isolated node_modules hides packages RN's Gradle resolves by path — added `@react-native/gradle-plugin`, `@react-native/codegen`, and `hermes-compiler` as direct deps so they symlink where the build expects; pointed `react.hermesCommand` at the `hermes-compiler` package.
+- Installed missing SDK bits via fresh cmdline-tools (the bundled `tools/bin/sdkmanager` is dead on JDK 21): build-tools 36, NDK 27.1.12297006, cmake 3.22.1.
+
+Known gaps / deferred:
+- No rendered page previews / in-app page viewer (see rendering choice above) — v1.1.
+- Editing beyond watermark/page-numbers (text, draw, stamp, signatures), forms, OCR, and conversions are desktop-only in v1 — they need on-screen placement and/or canvas/pdfjs that the numberless-grid mobile shell doesn't yet host.
+- Compress medium/high fall back to a lossless re-save on mobile (no canvas image re-encoder); low is identical to desktop.
+- APK is signed with the debug keystore (self-signed); fine for sideloading, not Play-Store upload.
+
+Offline verification: yes — release APK runs with no dev server and makes no network calls (INTERNET permission is present only so the *debug* build can reach Metro; the app itself never uses it).
