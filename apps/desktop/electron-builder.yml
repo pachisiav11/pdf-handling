@@ -1,0 +1,57 @@
+appId: dev.pdfx.desktop
+productName: PDFX
+copyright: MIT — no telemetry, no accounts, fully offline
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**
+  - build/icon.png
+  - package.json
+  # @pdfx/core is compiled into out/** already; exclude the symlinked workspace source.
+  - "!node_modules/@pdfx/core/**"
+
+# Native / worker-spawning modules must live outside the asar archive.
+asarUnpack:
+  - "**/node_modules/@napi-rs/**"
+  - "**/node_modules/tesseract.js/**"
+  - "**/node_modules/tesseract.js-core/**"
+  - "**/node_modules/pdfjs-dist/**"
+
+# Offline helper binaries. Tesseract data is always bundled (small).
+# LibreOffice (~1.6GB extracted) is bundled when present locally — run
+# `node scripts/fetch-binaries.mjs --office` before packaging for the full
+# offline installer; without it the app falls back to a system LibreOffice.
+extraResources:
+  - from: resources/tesseract
+    to: resources/tesseract
+  - from: resources/libreoffice
+    to: resources/libreoffice
+    filter: ["**/*", "!**/*.msi"]
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  artifactName: PDFX-Setup-${version}.${ext}
+
+# LibreOffice makes maximum compression take a very long time; store is fine.
+compression: store
+
+mac:
+  target: [dmg]
+  icon: build/icon.png
+  category: public.app-category.productivity
+
+linux:
+  target: [AppImage]
+  icon: build/icon.png
+  category: Office

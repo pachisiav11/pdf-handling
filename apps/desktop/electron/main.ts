@@ -11,6 +11,28 @@ function resourcesDir(): string {
     : join(app.getAppPath(), 'resources');
 }
 
+// ---- local-only error log (no network, ever) -------------------------------
+// Rotating-ish: one file per day, plain text, under the OS log dir.
+import { appendFile, mkdir } from 'fs/promises';
+
+async function logLocal(kind: string, detail: string): Promise<void> {
+  try {
+    const dir = app.getPath('logs');
+    await mkdir(dir, { recursive: true });
+    const day = new Date().toISOString().slice(0, 10);
+    await appendFile(
+      join(dir, `pdfx-${day}.log`),
+      `[${new Date().toISOString()}] ${kind}: ${detail}\n`,
+    );
+  } catch {
+    // Logging must never crash the app.
+  }
+}
+
+process.on('uncaughtException', (err) => void logLocal('uncaughtException', err.stack ?? String(err)));
+process.on('unhandledRejection', (reason) => void logLocal('unhandledRejection', String(reason)));
+ipcMain.on('log:error', (_e, message: string) => void logLocal('renderer', message));
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
@@ -19,6 +41,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     backgroundColor: '#161A1E',
+    icon: join(app.getAppPath(), 'build', 'icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
@@ -129,6 +152,45 @@ ipcMain.handle('ocr:run', async (event, bytes: ArrayBuffer): Promise<OcrPageResu
     );
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+// ---- recent files (local JSON in userData; never leaves the device) --------
+interface RecentEntry {
+  path: string;
+  name: string;
+  openedAt: number;
+}
+
+const recentFile = () => join(app.getPath('userData'), 'recent.json');
+
+ipcMain.handle('recent:list', async (): Promise<RecentEntry[]> => {
+  try {
+    return JSON.parse(await readFile(recentFile(), 'utf8')) as RecentEntry[];
+  } catch {
+    return [];
+  }
+});
+
+ipcMain.handle('recent:add', async (_e, entry: { path: string; name: string }) => {
+  let list: RecentEntry[] = [];
+  try {
+    list = JSON.parse(await readFile(recentFile(), 'utf8')) as RecentEntry[];
+  } catch {
+    /* first run */
+  }
+  list = [
+    { ...entry, openedAt: Date.now() },
+    ...list.filter((r) => r.path !== entry.path),
+  ].slice(0, 10);
+  await writeFile(recentFile(), JSON.stringify(list, null, 2));
+});
+
+ipcMain.handle('recent:open', async (_e, path: string): Promise<OpenedFile | null> => {
+  try {
+    return { fileName: basename(path), filePath: path, bytes: toArrayBuffer(await readFile(path)) };
+  } catch {
+    return null; // moved/deleted — renderer prunes it
   }
 });
 

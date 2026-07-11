@@ -1,6 +1,6 @@
 {
   "name": "@pdfx/desktop",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "main": "out/main/main.js",
   "scripts": {
@@ -11,17 +11,17 @@
     "package": "electron-vite build && electron-builder"
   },
   "dependencies": {
-    "@fontsource/bricolage-grotesque": "^5.2.10",
-    "@fontsource/caveat": "^5.2.8",
-    "@fontsource/ibm-plex-mono": "^5.2.7",
-    "@fontsource/inter": "^5.2.8",
     "@napi-rs/canvas": "^0.1.65",
-    "@pdfx/core": "workspace:*",
-    "fflate": "^0.8.2",
     "pdfjs-dist": "^4.8.69",
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
+    "@fontsource/bricolage-grotesque": "^5.2.10",
+    "@fontsource/caveat": "^5.2.8",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/inter": "^5.2.8",
+    "@pdfx/core": "workspace:*",
+    "fflate": "^0.8.2",
     "@types/node": "^22.9.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

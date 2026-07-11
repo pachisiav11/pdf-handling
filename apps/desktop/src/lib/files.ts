@@ -14,6 +14,10 @@ declare global {
       savePdf(defaultName: string, bytes: ArrayBuffer, extension?: string): Promise<string | null>;
       convertOffice(): Promise<OpenedFile | { error: string } | null>;
       runOcr(bytes: ArrayBuffer): Promise<unknown>;
+      logError?(message: string): void;
+      recentList?(): Promise<Array<{ path: string; name: string; openedAt: number }>>;
+      recentAdd?(entry: { path: string; name: string }): Promise<void>;
+      recentOpen?(path: string): Promise<OpenedFile | null>;
       onOcrProgress(cb: (p: { done: number; total: number }) => void): () => void;
     };
   }
@@ -56,7 +60,20 @@ if (import.meta.env.DEV && typeof window !== 'undefined' && !('pdfx' in window))
 
 export async function openViaDialog(): Promise<void> {
   const files = await window.pdfx.openPdfs();
-  for (const f of files) await openBytes(f.fileName, new Uint8Array(f.bytes));
+  for (const f of files) {
+    await openBytes(f.fileName, new Uint8Array(f.bytes));
+    if (!f.filePath.startsWith('DEV://')) {
+      void window.pdfx.recentAdd?.({ path: f.filePath, name: f.fileName });
+    }
+  }
+}
+
+export async function openRecent(path: string): Promise<boolean> {
+  const file = await window.pdfx.recentOpen?.(path);
+  if (!file) return false;
+  await openBytes(file.fileName, new Uint8Array(file.bytes));
+  void window.pdfx.recentAdd?.({ path: file.filePath, name: file.fileName });
+  return true;
 }
 
 export async function openDroppedFiles(list: FileList | File[]): Promise<void> {

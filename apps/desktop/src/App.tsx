@@ -37,6 +37,9 @@ export function App() {
       } else if (mod && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         void actions.rotateSelection(90);
+      } else if (mod && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        void actions.extractSelection();
       } else if ((mod && e.key.toLowerCase() === 'd') || e.key === 'Delete') {
         if (e.key === 'Delete' && isEditable(e.target)) return;
         e.preventDefault();

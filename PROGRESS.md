@@ -120,3 +120,25 @@ Known gaps / deferred:
 - Fixed en route: pdf.js static ESM import broke the CJS Electron main bundle → lazy dynamic import in core view.ts; @napi-rs/canvas hidden from browser bundlers behind a variable-specifier loader
 
 Offline verification: yes — OCR uses local traineddata (no CDN; tesseract.js worker/wasm from node_modules), LibreOffice runs as a local process, image/text exports are pure canvas/pdf.js.
+
+## Phase 6 — Desktop polish & packaging (2026-07-11)
+Shipped:
+- App icon: code-generated prepress mark (graphite tile, paper sheet with crop marks, CMY ink dots) → `build/icon.ico` (multi-size) + PNGs via `scripts/gen-icon.mjs`; used for window + installer
+- Local-only error logging: unhandled main/renderer errors and failed ops append to a dated file under `app.getPath('logs')` (operation/file metadata, never contents; no remote transport)
+- Recent files: last 10 stored in `userData/recent.json`, shown as pills on Home, prune-on-open if a file moved (device-local, never synced)
+- Extract selected pages → new document tab (toolbar + Ctrl+E)
+- `electron-builder.yml`: NSIS Windows installer, `extraResources` bundling tesseract data + LibreOffice (MSI filtered out), asarUnpack for native/worker modules; mac dmg / linux AppImage targets configured
+- Bumped desktop to v1.0.0
+
+Tested:
+- 43 core unit tests pass, incl. new 500-page perf sanity (rotate 544ms / delete 527ms — no UI-freezing quadratic blowup)
+- Packaged the app (electron-builder) and launched the **built** `win-unpacked/PDFX.exe` (not dev) — boots clean, no errors, `resources/resources/{libreoffice/program/soffice.exe, tesseract/eng.traineddata}` present in the packaged tree
+- Extract + multi-select verified through the UI (3 selected → 3-page extract in a new tab)
+- Installer: `PDFX-Setup-1.0.0.exe` (~490 MB with LibreOffice bundled)
+
+Known gaps / deferred:
+- Only Windows installer produced on this machine; mac/linux targets are configured but unbuilt (need those OSes / CI)
+- Ghostscript High-preset path still deferred (canvas re-encode handles High for now)
+- Installer is too large to commit/upload to GitHub per project constraint — README documents the fetch-binaries + electron-builder build steps instead
+
+Offline verification: yes — packaged app runs with all helper binaries local; no network transport anywhere (logging is file-only, CSP default-src 'self').

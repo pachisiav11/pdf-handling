@@ -5,6 +5,32 @@ import { rotatePages } from '../src/rotate';
 import { deletePages } from '../src/pages';
 
 /** Build-guide perf budget: ops on a ≤50-page doc complete in under 1s. */
+describe('performance sanity (500-page document, Phase 6)', () => {
+  it('loads, rotates and re-saves a 500-page doc without pathological slowdown', async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    for (let n = 1; n <= 500; n++) {
+      const page = doc.addPage([612, 792]);
+      page.drawText(`Page ${n}`, { x: 50, y: 720, size: 18, font });
+    }
+    const bytes = await doc.save();
+
+    const t0 = performance.now();
+    const rotated = await rotatePages(bytes, 90);
+    const rotateMs = performance.now() - t0;
+
+    const t1 = performance.now();
+    const trimmed = await deletePages(rotated, [0, 1, 2, 3, 4]);
+    const deleteMs = performance.now() - t1;
+
+    console.info(`500-page timings: rotate=${rotateMs.toFixed(0)}ms delete=${deleteMs.toFixed(0)}ms`);
+    expect(trimmed.length).toBeGreaterThan(0);
+    // Generous ceiling — this is a "no UI freeze / no quadratic blowup" check.
+    expect(rotateMs).toBeLessThan(5000);
+    expect(deleteMs).toBeLessThan(5000);
+  }, 60000);
+});
+
 describe('performance budget (50-page document)', () => {
   async function make50(): Promise<Uint8Array> {
     const doc = await PDFDocument.create();

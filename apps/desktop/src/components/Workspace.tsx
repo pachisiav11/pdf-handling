@@ -71,6 +71,14 @@ export function Workspace({ doc }: { doc: DocState }) {
         >
           Delete <kbd>Del</kbd>
         </button>
+        <button
+          className="btn"
+          disabled={!selCount}
+          onClick={() => void actions.extractSelection()}
+          title="Extract selected pages to a new document (Ctrl+E)"
+        >
+          Extract <kbd>Ctrl+E</kbd>
+        </button>
         <button className="btn" disabled={docs.length < 2} onClick={() => setDialog('merge')}>
           Merge <kbd>Ctrl+M</kbd>
         </button>

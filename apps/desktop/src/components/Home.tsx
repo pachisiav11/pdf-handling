@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { openDroppedFiles, openViaDialog } from '../lib/files';
+import { useEffect, useState } from 'react';
+import { openDroppedFiles, openRecent, openViaDialog } from '../lib/files';
 import { imagesToPdfFlow, officeToPdfFlow } from '../lib/convert';
+import { showNotice } from '../state/store';
 
 interface ToolDef {
   name: string;
@@ -21,6 +22,11 @@ const TOOLS: ToolDef[] = [
 
 export function Home() {
   const [over, setOver] = useState(false);
+  const [recent, setRecent] = useState<Array<{ path: string; name: string; openedAt: number }>>([]);
+
+  useEffect(() => {
+    window.pdfx.recentList?.().then(setRecent).catch(() => undefined);
+  }, []);
 
   return (
     <div
@@ -65,6 +71,28 @@ export function Home() {
           </button>
         ))}
       </div>
+
+      {recent.length > 0 && (
+        <div className="recent">
+          <span className="recent-label mono">Recent</span>
+          {recent.slice(0, 5).map((r) => (
+            <button
+              key={r.path}
+              className="recent-item"
+              title={r.path}
+              onClick={async () => {
+                const ok = await openRecent(r.path);
+                if (!ok) {
+                  setRecent((cur) => cur.filter((x) => x.path !== r.path));
+                  showNotice(`${r.name} has moved or been deleted — removed from recents.`);
+                }
+              }}
+            >
+              {r.name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

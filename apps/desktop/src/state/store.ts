@@ -190,6 +190,20 @@ export const actions = {
   },
   reorder: (newOrder: number[]) =>
     mutateActive('Reordering pages', (b) => ops.reorderPages(b, newOrder)),
+  /** Copy the selected pages into a new document tab. */
+  extractSelection: async () => {
+    const doc = activeDoc();
+    const sel = state.selection;
+    if (!doc || !sel.length || state.busy) return;
+    emit({ busy: `Extracting ${sel.length} page(s)` });
+    try {
+      const bytes = await ops.extractPages(doc.bytes, sel);
+      emit({ busy: null });
+      await openBytes(doc.fileName.replace(/\.pdf$/i, '') + '-extract.pdf', bytes);
+    } catch (err) {
+      emit({ busy: null, error: err instanceof Error ? err.message : String(err) });
+    }
+  },
   compress: (preset: 'low' | 'medium' | 'high') =>
     mutateActive(`Compressing (${preset})`, (b) => ops.compress(b, preset)),
 
