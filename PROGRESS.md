@@ -100,3 +100,23 @@ Known gaps / deferred:
 - A real third-party-app check (e.g. opening in Chrome/Adobe) is worth doing manually in Phase 6's packaged-build pass; pdf.js annotation readback is the automated stand-in
 
 Offline verification: yes — forms/signature paths are pure pdf-lib + canvas; signature images never leave localStorage.
+
+## Phase 5 — Conversion & OCR (2026-07-11)
+Shipped:
+- Core `convert/`: imagesToPdf (fit/A4/Letter), pdfToImages (platform CanvasEncoder; Node impl provided), extractPlainText, ocrPdf (tesseract.js, per-page progress callback, word boxes kept for the Phase 9 searchable-OCR upgrade), officeToPdf (Node-only module — spawns LibreOffice headless, NOT exported from the package index so mobile bundles never see node builtins)
+- `scripts/fetch-binaries.mjs`: downloads the gitignored binaries — tesseract `eng.traineddata` (~4MB, always) and LibreOffice 25.8.5.2 (~350MB MSI, extracted via `msiexec /a`, no admin needed) with `--office`; Ghostscript stub with `--gs` (Phase 6)
+- Desktop: Home cards "Images → PDF" (native multi-image picker → one page per image → opens as doc) and "Office → PDF" (picker → LibreOffice in main process → opens converted doc); Workspace "Export" menu — Pages → PNG (150dpi, zipped for multipage), Text → .txt, OCR dialog with page-by-page progress bar and save-as-txt
+- OCR runs in the Electron main process (tesseract.js + @napi-rs/canvas + local language data); progress streamed to the renderer over IPC
+
+Tested:
+- 42 core unit tests pass, incl. OCR acceptance: an image-only "scanned" fixture OCRs to the correct text ("quick brown fox…", "12345") in ~1.5s/page with local traineddata
+- Office acceptance: generated a real .docx, converted with the **bundled** LibreOffice (52s cold start, then fast), verified `%PDF-` output and that extracted text contains the document content
+- App builds (main/preload/renderer) and boots clean
+
+Known gaps / deferred:
+- PDF→image DPI/quality picker: fixed 150dpi PNG in v1 (choice UI later)
+- Extra OCR language packs: user-added downloads later per guide; only `eng` bundled
+- LibreOffice cold-start (~50s first conversion) — consider a profile pre-warm in Phase 6
+- Fixed en route: pdf.js static ESM import broke the CJS Electron main bundle → lazy dynamic import in core view.ts; @napi-rs/canvas hidden from browser bundlers behind a variable-specifier loader
+
+Offline verification: yes — OCR uses local traineddata (no CDN; tesseract.js worker/wasm from node_modules), LibreOffice runs as a local process, image/text exports are pure canvas/pdf.js.

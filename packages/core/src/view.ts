@@ -1,12 +1,20 @@
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
+
+/** pdf.js is ESM-only; load it lazily (and once) so this module also works
+    when bundled into a CommonJS context (Electron main). */
+let pdfjsPromise: Promise<typeof import('pdfjs-dist/legacy/build/pdf.mjs')> | null = null;
+function loadPdfjs() {
+  pdfjsPromise ??= import('pdfjs-dist/legacy/build/pdf.mjs');
+  return pdfjsPromise;
+}
 
 /**
  * Configure the pdf.js worker for browser contexts (call once at app startup
  * with the bundled worker URL). In Node/tests, pdf.js falls back to a fake
  * worker automatically and this is unnecessary.
  */
-export function configurePdfjsWorker(workerSrc: string): void {
+export async function configurePdfjsWorker(workerSrc: string): Promise<void> {
+  const pdfjs = await loadPdfjs();
   pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
 }
 
@@ -33,6 +41,7 @@ export async function openForRender(
   bytes: Uint8Array,
   opts: OpenOptions = {},
 ): Promise<PDFDocumentProxy> {
+  const pdfjs = await loadPdfjs();
   const standardFontDataUrl = opts.standardFontDataUrl ?? (await defaultStandardFontDataUrl());
   // pdf.js transfers the buffer to its worker; copy so callers keep their bytes.
   return pdfjs.getDocument({

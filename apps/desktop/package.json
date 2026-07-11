@@ -15,8 +15,11 @@
     "@fontsource/caveat": "^5.2.8",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@fontsource/inter": "^5.2.8",
+    "@napi-rs/canvas": "^0.1.65",
     "@pdfx/core": "workspace:*",
-    "pdfjs-dist": "^4.8.69"
+    "fflate": "^0.8.2",
+    "pdfjs-dist": "^4.8.69",
+    "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

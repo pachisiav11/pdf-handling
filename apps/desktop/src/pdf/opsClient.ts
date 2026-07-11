@@ -64,6 +64,8 @@ export const ops = {
     call({ op: 'crop', bytes: bytes.slice(), box, indices }),
   replacePages: (bytes: Uint8Array, replacements: import('@pdfx/core').PageImageReplacement[]) =>
     call({ op: 'replacePages', bytes: bytes.slice(), replacements }),
+  imagesToPdf: (images: import('@pdfx/core').ImageInput[], pageSize: import('@pdfx/core').ImagePageSize) =>
+    call({ op: 'imagesToPdf', images, pageSize }),
   listFields: (bytes: Uint8Array) =>
     callRaw({ op: 'listFields', bytes: bytes.slice() }) as Promise<
       import('@pdfx/core').FieldInfo[]

@@ -11,6 +11,8 @@ release/
 # Bundled native binaries — NOT committed (too large). See README "Native binaries" section
 # for the fetch script that downloads LibreOffice / Tesseract / Ghostscript / qpdf locally.
 apps/desktop/resources/bin/
+apps/desktop/resources/*.msi
+apps/desktop/resources/*.exe
 apps/desktop/resources/libreoffice/
 apps/desktop/resources/tesseract/
 apps/desktop/resources/ghostscript/
@@ -37,3 +39,4 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/
+scripts/.tmp/

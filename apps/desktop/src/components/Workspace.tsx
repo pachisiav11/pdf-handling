@@ -12,11 +12,12 @@ import { Viewer } from './Viewer';
 import { MergeDialog, PageNumbersDialog, SplitDialog, WatermarkDialog } from './dialogs';
 import { FormsPanel } from './FormsPanel';
 import { SignatureDialog } from './SignatureDialog';
+import { ExportMenu, OcrDialog } from './ExportTools';
 
 export function Workspace({ doc }: { doc: DocState }) {
   const { docs, selection, viewerPage } = useAppState();
   const [dialog, setDialog] = useState<
-    'split' | 'merge' | 'pagenumbers' | 'watermark' | 'sign' | 'initials' | null
+    'split' | 'merge' | 'pagenumbers' | 'watermark' | 'sign' | 'initials' | 'ocr' | null
   >(null);
   const [formsOpen, setFormsOpen] = useState(false);
   const selCount = selection.length;
@@ -92,6 +93,7 @@ export function Workspace({ doc }: { doc: DocState }) {
         <button className="btn" onClick={() => setDialog('initials')}>
           Initials
         </button>
+        <ExportMenu onOcr={() => setDialog('ocr')} />
         <span className="spacer" />
 
         <button className="btn" disabled={!doc.history.length} onClick={() => actions.undo()}>
@@ -128,6 +130,7 @@ export function Workspace({ doc }: { doc: DocState }) {
       {dialog === 'watermark' && <WatermarkDialog onClose={() => setDialog(null)} />}
       {dialog === 'sign' && <SignatureDialog slot="signature" onClose={() => setDialog(null)} />}
       {dialog === 'initials' && <SignatureDialog slot="initials" onClose={() => setDialog(null)} />}
+      {dialog === 'ocr' && <OcrDialog doc={doc} onClose={() => setDialog(null)} />}
     </div>
   );
 }

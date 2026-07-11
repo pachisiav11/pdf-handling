@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { openDroppedFiles, openViaDialog } from '../lib/files';
+import { imagesToPdfFlow, officeToPdfFlow } from '../lib/convert';
 
 interface ToolDef {
   name: string;
   desc: string;
+  action?: () => void;
 }
 
 /* Every tool opens with file selection first — one click to the tool,
@@ -13,7 +15,8 @@ const TOOLS: ToolDef[] = [
   { name: 'Merge', desc: 'Combine PDFs into one' },
   { name: 'Split', desc: 'Extract a page range' },
   { name: 'Compress', desc: 'Shrink file size' },
-  { name: 'View', desc: 'Read with zoom' },
+  { name: 'Images → PDF', desc: 'JPG/PNG to pages', action: () => void imagesToPdfFlow() },
+  { name: 'Office → PDF', desc: 'Word, Excel, PowerPoint', action: () => void officeToPdfFlow() },
 ];
 
 export function Home() {
@@ -52,7 +55,11 @@ export function Home() {
 
       <div className="tool-grid">
         {TOOLS.map((t) => (
-          <button key={t.name} className="tool-card cropmarks" onClick={() => void openViaDialog()}>
+          <button
+            key={t.name}
+            className="tool-card cropmarks"
+            onClick={t.action ?? (() => void openViaDialog())}
+          >
             <b>{t.name}</b>
             <span>{t.desc}</span>
           </button>

@@ -9,7 +9,7 @@ import type { ImageReencoder } from './compress';
 export function createNodeReencoder(): ImageReencoder {
   return async (jpegBytes, { maxDimension, quality }) => {
     try {
-      const { createCanvas, loadImage } = await import('@napi-rs/canvas');
+      const { createCanvas, loadImage } = await (await import('./node-canvas')).loadNodeCanvas();
       const img = await loadImage(Buffer.from(jpegBytes));
       const ratio = Math.min(1, maxDimension / Math.max(img.width, img.height));
       const w = Math.max(1, Math.round(img.width * ratio));

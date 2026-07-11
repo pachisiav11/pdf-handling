@@ -8,7 +8,7 @@ import type { RedactionRasterizer } from './redact';
  */
 export function createNodeRedactionRasterizer(): RedactionRasterizer {
   return async (bytes, pageIndex, scale, rects) => {
-    const { createCanvas } = await import('@napi-rs/canvas');
+    const { createCanvas } = await (await import('../node-canvas')).loadNodeCanvas();
     const doc = await openForRender(bytes);
     try {
       const page = await doc.getPage(pageIndex + 1);

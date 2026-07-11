@@ -80,6 +80,29 @@ export function mixedSizePdf(): Promise<Uint8Array> {
   });
 }
 
+/** "Scanned" PDF: one page that is only an image of rendered text (for OCR). */
+export function scannedPdf(): Promise<Uint8Array> {
+  return cached('scanned-text.pdf', async () => {
+    const { createCanvas } = await import('@napi-rs/canvas');
+    const canvas = createCanvas(1224, 1584); // Letter at 2x
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, 1224, 1584);
+    ctx.fillStyle = '#111';
+    ctx.font = '48px Arial';
+    ctx.fillText('The quick brown fox jumps', 100, 220);
+    ctx.fillText('over the lazy dog', 100, 300);
+    ctx.font = '36px Arial';
+    ctx.fillText('OCR VERIFICATION SAMPLE 12345', 100, 420);
+    const jpeg = canvas.toBuffer('image/jpeg', 92);
+    const doc = await PDFDocument.create();
+    const img = await doc.embedJpg(jpeg);
+    const page = doc.addPage([612, 792]);
+    page.drawImage(img, { x: 0, y: 0, width: 612, height: 792 });
+    return doc.save();
+  });
+}
+
 /** PDF with AcroForm fields: a text field and a checkbox. */
 export function formPdf(): Promise<Uint8Array> {
   return cached('acroform.pdf', async () => {

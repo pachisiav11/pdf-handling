@@ -4,9 +4,24 @@ import { resolve } from 'path';
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // Bundle @pdfx/core (it's TS source, not a published package); keep real deps external.
+    plugins: [externalizeDepsPlugin({ exclude: ['@pdfx/core'] })],
+    resolve: {
+      // Longest key first: plain '@pdfx/core' must not shadow the subpath.
+      alias: [
+        {
+          find: '@pdfx/core/convert/officeConvert',
+          replacement: resolve(__dirname, '../../packages/core/src/convert/officeConvert.ts'),
+        },
+        { find: '@pdfx/core', replacement: resolve(__dirname, '../../packages/core/src/index.ts') },
+      ],
+    },
     build: {
       lib: { entry: 'electron/main.ts' },
+      rollupOptions: {
+        // Native module + worker-spawning dep must stay external (resolved at runtime).
+        external: ['@napi-rs/canvas', 'tesseract.js', /\.node$/],
+      },
     },
   },
   preload: {

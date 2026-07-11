@@ -1,10 +1,20 @@
 import { openBytes, showNotice, actions, getState } from '../state/store';
 
+interface OpenedFile {
+  fileName: string;
+  filePath: string;
+  bytes: ArrayBuffer;
+}
+
 declare global {
   interface Window {
     pdfx: {
-      openPdfs(): Promise<Array<{ fileName: string; filePath: string; bytes: ArrayBuffer }>>;
+      openPdfs(): Promise<OpenedFile[]>;
+      openImages(): Promise<OpenedFile[]>;
       savePdf(defaultName: string, bytes: ArrayBuffer, extension?: string): Promise<string | null>;
+      convertOffice(): Promise<OpenedFile | { error: string } | null>;
+      runOcr(bytes: ArrayBuffer): Promise<unknown>;
+      onOcrProgress(cb: (p: { done: number; total: number }) => void): () => void;
     };
   }
 }
@@ -29,6 +39,18 @@ if (import.meta.env.DEV && typeof window !== 'undefined' && !('pdfx' in window))
       (window as unknown as { __lastSaved?: Uint8Array }).__lastSaved = new Uint8Array(bytes);
       return `DEV://${defaultName}`;
     },
+    async openImages() {
+      return [];
+    },
+    async convertOffice() {
+      return { error: 'Office conversion requires the desktop app (LibreOffice).' };
+    },
+    async runOcr() {
+      return { error: 'OCR runs in the desktop app main process — not available in browser dev.' };
+    },
+    onOcrProgress() {
+      return () => undefined;
+    },
   };
 }
 
@@ -51,7 +73,7 @@ export async function openDroppedFiles(list: FileList | File[]): Promise<void> {
 export async function saveBytesAs(
   defaultName: string,
   bytes: Uint8Array,
-  extension: 'pdf' | 'zip' = 'pdf',
+  extension: 'pdf' | 'zip' | 'txt' | 'png' | 'jpg' = 'pdf',
 ): Promise<boolean> {
   const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   const path = await window.pdfx.savePdf(defaultName, buf as ArrayBuffer, extension);

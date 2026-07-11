@@ -41,12 +41,21 @@ importers:
       '@fontsource/inter':
         specifier: ^5.2.8
         version: 5.2.8
+      '@napi-rs/canvas':
+        specifier: ^0.1.65
+        version: 0.1.100
       '@pdfx/core':
         specifier: workspace:*
         version: link:../../packages/core
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.3
       pdfjs-dist:
         specifier: ^4.8.69
         version: 4.10.38
+      tesseract.js:
+        specifier: ^5.1.1
+        version: 5.1.1(encoding@0.1.13)
     devDependencies:
       '@types/node':
         specifier: ^22.9.0

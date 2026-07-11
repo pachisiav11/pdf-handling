@@ -6,7 +6,10 @@ import {
   addMarkups,
   createFormFields,
   fillFormFields,
+  imagesToPdf,
   listFormFields,
+  type ImageInput,
+  type ImagePageSize,
   type FieldInfo,
   type FieldValue,
   type NewFieldSpec,
@@ -55,6 +58,7 @@ export type OpRequest =
   | { id: number; op: 'watermark'; bytes: Uint8Array; options: WatermarkOptions }
   | { id: number; op: 'crop'; bytes: Uint8Array; box: Rect; indices?: number[] }
   | { id: number; op: 'replacePages'; bytes: Uint8Array; replacements: PageImageReplacement[] }
+  | { id: number; op: 'imagesToPdf'; images: ImageInput[]; pageSize: ImagePageSize }
   | { id: number; op: 'listFields'; bytes: Uint8Array }
   | { id: number; op: 'fillFields'; bytes: Uint8Array; values: FieldValue[] }
   | { id: number; op: 'createFields'; bytes: Uint8Array; specs: NewFieldSpec[] };
@@ -90,6 +94,8 @@ async function run(req: OpRequest): Promise<Uint8Array | { data: FieldInfo[] }> 
       return fillFormFields(req.bytes, req.values);
     case 'createFields':
       return createFormFields(req.bytes, req.specs);
+    case 'imagesToPdf':
+      return imagesToPdf(req.images, req.pageSize);
     case 'merge':
       return mergePdfs(req.sources);
     case 'splitRange':
