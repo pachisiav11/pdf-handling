@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# pnpm 11 has a linking hang on this workspace (Windows especially); the repo is
+# pinned to pnpm 9.15.9 via package.json "packageManager" and every job matches it.
+
+jobs:
+  # ---- Reliable gate: install, core unit tests, typechecks, and a JS-build
+  # smoke test of BOTH apps (desktop electron-vite bundle + mobile Metro bundle).
+  # No native toolchains here, so this stays fast and green.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Core unit tests
+        run: pnpm --filter @pdfx/core test
+
+      - name: Typecheck (core)
+        run: pnpm --filter @pdfx/core typecheck
+
+      - name: Typecheck (desktop)
+        run: pnpm --filter @pdfx/desktop typecheck
+
+      - name: Typecheck (mobile)
+        run: pnpm --filter @pdfx/mobile typecheck
+
+      - name: Desktop build (electron-vite bundle)
+        run: pnpm --filter @pdfx/desktop build
+
+      - name: Mobile JS bundle (Metro, proves the RN app bundles)
+        working-directory: apps/mobile
+        run: >-
+          npx react-native bundle
+          --platform android
+          --dev false
+          --entry-file index.js
+          --bundle-output "$RUNNER_TEMP/index.android.bundle"
+          --assets-dest "$RUNNER_TEMP/assets"
+
+  # ---- Build-artifact smoke test: produce the Android release APK.
+  # Mirrors the local recipe (NDK 27 + cmake + build-tools 36; RN's Gradle
+  # packages resolved as direct deps for pnpm's isolated node_modules).
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: |
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Assemble release APK
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdfx-android-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+  # ---- Build-artifact smoke test: produce the Windows NSIS installer.
+  # LibreOffice (~1.6 GB) is NOT fetched in CI — the app degrades to a
+  # system LibreOffice at runtime. Tesseract (small) is fetched so OCR data
+  # is bundled; the libreoffice resources dir is stubbed so electron-builder's
+  # extraResources copy step succeeds.
+  desktop-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch tesseract data; stub LibreOffice dir
+        run: |
+          node scripts/fetch-binaries.mjs
+          New-Item -ItemType Directory -Force -Path apps/desktop/resources/libreoffice | Out-Null
+        shell: pwsh
+
+      - name: Build renderer/main/preload
+        run: pnpm --filter @pdfx/desktop build
+
+      - name: Package NSIS installer (no bundled LibreOffice)
+        working-directory: apps/desktop
+        run: npx electron-builder --win nsis --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdfx-desktop-installer
+          path: apps/desktop/release/PDFX-Setup-*.exe
+          if-no-files-found: error

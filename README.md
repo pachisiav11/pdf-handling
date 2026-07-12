@@ -1,8 +1,18 @@
 # PDFX — offline-first PDF editor
 
+[![CI](https://github.com/pachisiav11/pdf-handling/actions/workflows/ci.yml/badge.svg)](https://github.com/pachisiav11/pdf-handling/actions/workflows/ci.yml)
+
 Fast, private, fully-offline PDF editing for desktop and Android, built from one shared TypeScript core. **No uploads, no accounts, no telemetry, no paywall.** Everything runs on your machine — the competitive angle against tools like iLovePDF is that there is no upload/download round-trip and nothing ever leaves your device.
 
-<!-- Screenshots added in Phase 8 -->
+## Screenshots
+
+Desktop (Electron) — the prepress light-table: graphite desk, paper-white page thumbnails, CMYK ink accents, registration crop-marks as the selection state.
+
+Android — the same identity, running the shared core in Hermes:
+
+| Home | Page grid + tools |
+|---|---|
+| ![PDFX Android home](docs/screenshots/mobile-home.png) | ![PDFX Android page grid](docs/screenshots/mobile-pages.png) |
 
 ## Why it's different from iLovePDF & friends
 
@@ -20,6 +30,8 @@ Fast, private, fully-offline PDF editing for desktop and Android, built from one
 **Editing** — text overlay, highlight/underline/strikethrough, freehand draw, image stamps, page numbers, watermark, crop, and **true redaction** (the page is rasterized and the original content stream is discarded — the removed text cannot be recovered, unlike a cosmetic black box).
 **Forms & signatures** — detect & fill AcroForm fields, create text-field/checkbox fields, and sign or initial by drawing, typing (handwriting font), or uploading an image (saved locally for reuse).
 **Conversion** — images ↔ PDF, PDF → images (PNG), PDF → text, OCR of scanned PDFs (Tesseract, English bundled), and **Office → PDF** (Word/Excel/PowerPoint, desktop-only via bundled LibreOffice).
+
+**Android** — the mobile app runs the shared core in Hermes and covers the page toolset: merge, split, delete, extract, reorder, rotate, compress, watermark, page numbers, undo/redo, and save to Downloads. Editing/forms/OCR/conversion and rendered page previews are desktop-only in v1 (see PROGRESS.md → Phase 7 for why, and the v1.1 plan).
 
 See [PROGRESS.md](PROGRESS.md) for exactly what's implemented per phase.
 
@@ -54,6 +66,34 @@ node scripts/fetch-binaries.mjs --office   # download offline binaries first (se
 pnpm --filter @pdfx/desktop build
 cd apps/desktop && npx electron-builder --win   # → apps/desktop/release/PDFX-Setup-<version>.exe
 ```
+
+### Android app (APK)
+
+Requires the **Android SDK** (platform 36, build-tools 36.0.0), **NDK 27.1.12297006**, **CMake 3.22.1**, and **JDK 21**. RN 0.86 is new-architecture-only, so the NDK/CMake are required even though the app ships no C++ of its own.
+
+```sh
+# from a fresh checkout, install workspace deps first
+pnpm install
+
+# debug build onto a running emulator/device (Metro required):
+pnpm --filter @pdfx/mobile start          # terminal 1 — Metro
+pnpm --filter @pdfx/mobile android        # terminal 2 — build + install
+
+# self-contained release APK (bundled JS, runs offline, no Metro):
+cd apps/mobile/android && ./gradlew assembleRelease
+# → apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+```
+
+The prebuilt APK is attached to the [Android release](https://github.com/pachisiav11/pdf-handling/releases/tag/v1.0.0-android) (it is not committed to git). It is signed with the debug keystore — fine for sideloading.
+
+> **pnpm + React Native note:** with pnpm's isolated `node_modules`, RN's Gradle build resolves a few packages by path that would otherwise be hidden in the virtual store. They are declared as direct devDependencies of `@pdfx/mobile` (`@react-native/gradle-plugin`, `@react-native/codegen`, `hermes-compiler`) and `react.hermesCommand` is pointed at the `hermes-compiler` package. This is why the app builds under pnpm without hoisting.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push/PR:
+- **verify** (Ubuntu) — install, `@pdfx/core` unit tests, typecheck all three packages, the desktop electron-vite bundle, and the mobile Metro bundle. This is the always-on gate.
+- **android-apk** (Ubuntu) — installs the SDK/NDK/CMake and produces the release APK as a build artifact.
+- **desktop-installer** (Windows) — builds the NSIS installer (without the large LibreOffice payload; the app degrades to a system LibreOffice) and uploads it as an artifact.
 
 ## Native binaries (not committed to git)
 

@@ -168,3 +168,22 @@ Known gaps / deferred:
 - APK is signed with the debug keystore (self-signed); fine for sideloading, not Play-Store upload.
 
 Offline verification: yes — release APK runs with no dev server and makes no network calls (INTERNET permission is present only so the *debug* build can reach Metro; the app itself never uses it).
+
+## Phase 8 — Testing, CI, README, v1.0 release (2026-07-12)
+
+- **CI** (`.github/workflows/ci.yml`, runs on every push/PR to `main` + manual dispatch), three jobs, all pinned to pnpm 9.15.9:
+  - `verify` (Ubuntu, the always-on gate): `pnpm install --frozen-lockfile` → `@pdfx/core` unit tests → typecheck of all three packages (core/desktop/mobile) → desktop electron-vite bundle → mobile Metro bundle (`react-native bundle`, proves the RN app bundles with no native toolchain). Fast, no NDK/Android SDK.
+  - `android-apk` (Ubuntu): installs JDK 21 + Android SDK/NDK 27.1.12297006/CMake 3.22.1/build-tools 36, then `./gradlew assembleRelease` and uploads `app-release.apk` as an artifact — mirrors the local recipe (direct-dep gradle-plugin/codegen/hermes-compiler for pnpm's isolated node_modules).
+  - `desktop-installer` (Windows): fetches the small Tesseract data, stubs an empty `libreoffice` resources dir (so electron-builder's `extraResources` copy succeeds without the ~1.6 GB payload), builds the renderer/main/preload, and packages the NSIS installer, uploaded as an artifact. The CI installer degrades to a system LibreOffice at runtime.
+- **README** rewritten for the shipped state: CI badge, screenshots section (two real Pixel-Fold captures under `docs/screenshots/`), a "why it's different from iLovePDF" table, per-area feature list (core/editing/forms/conversion + the Android subset), build-from-source + Android-APK steps, the pnpm+RN gradle note, a CI section, and the native-binaries fetch instructions.
+- Locally re-verified the novel CI steps before pushing: `pnpm install --frozen-lockfile` in sync (no lockfile drift), mobile Metro bundle produces a 1.47 MB `index.android.bundle`.
+
+Verified: CI is expected green on this push (the `verify` gate mirrors steps run locally); README accurately describes desktop + Android state and the desktop-only limitations.
+
+Release: combined **v1.0** GitHub release referencing both platform artifacts (desktop NSIS installer + Android APK). Artifacts are attached to the release, not committed to git (per the "don't push intensive files" constraint).
+
+Known gaps / deferred:
+- No Playwright-against-Electron E2E yet (flagged since Phase 2) — the core unit suite + typechecks + build smoke tests are the automated gate; end-to-end desktop UI testing is a v1.1 item.
+- CI's desktop installer ships without bundled LibreOffice (size); the released installer built locally with `--office` is the full-offline one.
+
+Offline verification: n/a for CI itself (it builds artifacts); the produced artifacts are the same fully-offline desktop app and self-contained release APK verified in Phases 6 and 7.
