@@ -21,7 +21,7 @@ import {
   useStore,
   type State,
 } from './state/store';
-import type { CompressPreset, NumberPosition } from '@pdfx/core/mobile';
+import type { CompressPreset, NumberPosition, PaperSize } from '@pdfx/core/mobile';
 
 const C = {
   desk: '#1c1f24',
@@ -84,7 +84,8 @@ function Home() {
         <Text style={styles.ctaText}>Open a PDF</Text>
       </Pressable>
       <Text style={styles.homeHint}>
-        Merge · Split · Rotate · Delete · Reorder · Extract · Compress · Watermark · Page numbers
+        Merge · Split · Rotate · Delete · Reorder · Extract · Compress · Watermark · Page numbers ·
+        Normalize · Title · Batch
       </Text>
     </View>
   );
@@ -93,7 +94,10 @@ function Home() {
 function DocScreen({ state }: { state: State }) {
   const doc = state.doc!;
   const sel = state.selection;
-  const [modal, setModal] = useState<null | 'split' | 'watermark' | 'pagenumbers' | 'compress'>(null);
+  const [modal, setModal] = useState<
+    null | 'split' | 'watermark' | 'pagenumbers' | 'compress' | 'normalize' | 'title' | 'batch'
+  >(null);
+  const [pageSheet, setPageSheet] = useState<number | null>(null);
 
   return (
     <View style={styles.fill}>
@@ -118,7 +122,13 @@ function DocScreen({ state }: { state: State }) {
         {Array.from({ length: doc.pageCount }, (_, i) => {
           const selected = sel.includes(i);
           return (
-            <Pressable key={i} style={styles.tileWrap} onPress={() => toggleSelect(i)}>
+            <Pressable
+              key={i}
+              style={styles.tileWrap}
+              onPress={() => toggleSelect(i)}
+              onLongPress={() => setPageSheet(i)}
+              delayLongPress={300}
+            >
               <View style={[styles.tile, selected && styles.tileSelected]}>
                 {selected && <RegistrationMarks />}
                 <Text style={styles.tileNum}>{i + 1}</Text>
@@ -162,6 +172,9 @@ function DocScreen({ state }: { state: State }) {
         <Tool label="Compress" onPress={() => setModal('compress')} />
         <Tool label="Watermark" onPress={() => setModal('watermark')} />
         <Tool label="Page #s" onPress={() => setModal('pagenumbers')} />
+        <Tool label="Normalize" onPress={() => setModal('normalize')} />
+        <Tool label="Title" onPress={() => setModal('title')} />
+        <Tool label="Batch" onPress={() => setModal('batch')} />
         <Tool label="Undo" disabled={!doc.history.length} onPress={() => actions.undo()} />
         <Tool label="Redo" disabled={!doc.future.length} onPress={() => actions.redo()} />
       </ScrollView>
@@ -169,7 +182,15 @@ function DocScreen({ state }: { state: State }) {
       {modal === 'split' && <SplitModal max={doc.pageCount} onClose={() => setModal(null)} />}
       {modal === 'watermark' && <WatermarkModal onClose={() => setModal(null)} />}
       {modal === 'pagenumbers' && <PageNumbersModal onClose={() => setModal(null)} />}
-      {modal === 'compress' && <CompressModal onClose={() => setModal(null)} />}
+      {modal === 'compress' && (
+        <CompressModal currentBytes={doc.bytes.length} onClose={() => setModal(null)} />
+      )}
+      {modal === 'normalize' && <NormalizeModal onClose={() => setModal(null)} />}
+      {modal === 'title' && <TitleModal onClose={() => setModal(null)} />}
+      {modal === 'batch' && <BatchModal onClose={() => setModal(null)} />}
+      {pageSheet !== null && (
+        <PageActionSheet index={pageSheet} onClose={() => setPageSheet(null)} />
+      )}
     </View>
   );
 }
@@ -307,12 +328,14 @@ function PageNumbersModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function CompressModal({ onClose }: { onClose: () => void }) {
+function CompressModal({ currentBytes, onClose }: { currentBytes: number; onClose: () => void }) {
   const presets: Array<[CompressPreset, string]> = [
     ['low', 'Low — lossless re-save'],
     ['medium', 'Medium — lossless on mobile'],
     ['high', 'High — lossless on mobile'],
   ];
+  const currentMb = currentBytes / (1024 * 1024);
+  const [targetMb, setTargetMb] = useState((currentMb * 0.7).toFixed(1));
   return (
     <ModalShell title="Compress" onClose={onClose}>
       <Text style={styles.modalHint}>
@@ -328,6 +351,145 @@ function CompressModal({ onClose }: { onClose: () => void }) {
           }}
         >
           <Text style={styles.choiceText}>{label}</Text>
+        </Pressable>
+      ))}
+      <Text style={styles.modalHint}>Or target a size (MB) — current {currentMb.toFixed(2)} MB:</Text>
+      <View style={styles.rowInline}>
+        <TextInput
+          style={[styles.input, styles.inlineInput]}
+          value={targetMb}
+          onChangeText={setTargetMb}
+          keyboardType="decimal-pad"
+          placeholder="MB"
+          placeholderTextColor={C.dim}
+        />
+        <Pressable
+          style={styles.modalConfirm}
+          onPress={() => {
+            const mb = parseFloat(targetMb);
+            onClose();
+            if (mb > 0) void actions.compressToTarget(Math.round(mb * 1024 * 1024));
+          }}
+        >
+          <Text style={styles.modalConfirmText}>Target</Text>
+        </Pressable>
+      </View>
+      <ModalActions onClose={onClose} />
+    </ModalShell>
+  );
+}
+
+function NormalizeModal({ onClose }: { onClose: () => void }) {
+  const sizes: Array<[PaperSize, string]> = [
+    ['a4', 'A4'],
+    ['letter', 'US Letter'],
+  ];
+  return (
+    <ModalShell title="Normalize page size" onClose={onClose}>
+      <Text style={styles.modalHint}>Rescales every page to a uniform size, centered.</Text>
+      {sizes.map(([size, label]) => (
+        <Pressable
+          key={size}
+          style={styles.choiceRow}
+          onPress={() => {
+            onClose();
+            void actions.normalize(size);
+          }}
+        >
+          <Text style={styles.choiceText}>{label}</Text>
+        </Pressable>
+      ))}
+      <ModalActions onClose={onClose} />
+    </ModalShell>
+  );
+}
+
+function TitleModal({ onClose }: { onClose: () => void }) {
+  const [title, setTitle] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  React.useEffect(() => {
+    let alive = true;
+    actions.getCurrentTitle().then((t) => {
+      if (alive) {
+        setTitle(t);
+        setLoaded(true);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return (
+    <ModalShell title="Document title" onClose={onClose}>
+      <TextInput
+        style={styles.input}
+        value={title}
+        onChangeText={setTitle}
+        placeholder={loaded ? '(no title set)' : 'Loading…'}
+        placeholderTextColor={C.dim}
+      />
+      <ModalActions
+        onClose={onClose}
+        confirmLabel="Save title"
+        disabled={!loaded}
+        onConfirm={() => {
+          onClose();
+          void actions.setTitle(title);
+        }}
+      />
+    </ModalShell>
+  );
+}
+
+function BatchModal({ onClose }: { onClose: () => void }) {
+  const ops: Array<[Parameters<typeof actions.batch>[0], string]> = [
+    ['compress-medium', 'Compress each'],
+    ['rotate90', 'Rotate each 90°'],
+    ['normalize-a4', 'Normalize each to A4'],
+    ['watermark', 'Watermark each "DRAFT"'],
+  ];
+  return (
+    <ModalShell title="Batch — pick many PDFs" onClose={onClose}>
+      <Text style={styles.modalHint}>
+        Apply one operation to several files; each result is saved to Downloads. A failed file never
+        stops the rest.
+      </Text>
+      {ops.map(([op, label]) => (
+        <Pressable
+          key={op}
+          style={styles.choiceRow}
+          onPress={() => {
+            onClose();
+            void actions.batch(op);
+          }}
+        >
+          <Text style={styles.choiceText}>{label}</Text>
+        </Pressable>
+      ))}
+      <ModalActions onClose={onClose} />
+    </ModalShell>
+  );
+}
+
+/** Long-press action sheet for a single page (mobile command-palette equivalent). */
+function PageActionSheet({ index, onClose }: { index: number; onClose: () => void }) {
+  const rows: Array<[string, () => void, boolean?]> = [
+    ['Rotate this page 90°', () => void actions.rotatePage(index)],
+    ['Extract this page → Downloads', () => void actions.extractPageToDownloads(index)],
+    ['Delete this page', () => void actions.deletePage(index), true],
+  ];
+  return (
+    <ModalShell title={`Page ${index + 1}`} onClose={onClose}>
+      {rows.map(([label, run, danger]) => (
+        <Pressable
+          key={label}
+          style={styles.choiceRow}
+          onPress={() => {
+            onClose();
+            run();
+          }}
+        >
+          <Text style={[styles.choiceText, danger && styles.toolDangerText]}>{label}</Text>
         </Pressable>
       ))}
       <ModalActions onClose={onClose} />
@@ -509,6 +671,8 @@ const styles = StyleSheet.create({
   },
   choiceRow: { paddingVertical: 12, paddingHorizontal: 8, borderRadius: 6, backgroundColor: C.panel2 },
   choiceText: { color: C.ink, fontSize: 15 },
+  rowInline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  inlineInput: { flex: 1 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
   modalCancel: { paddingVertical: 10, paddingHorizontal: 16 },
   modalCancelText: { color: C.dim, fontWeight: '600' },

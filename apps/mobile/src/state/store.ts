@@ -10,11 +10,17 @@ import {
   compressPdf,
   addWatermark,
   addPageNumbers,
+  compressToTargetSize,
+  normalizePageSize,
+  setTitle,
+  getTitle,
+  runBatch,
   type RotationDelta,
   type CompressPreset,
   type NumberPosition,
+  type PaperSize,
 } from '@pdfx/core/mobile';
-import { pickPdf, savePdfToDownloads } from '../lib/files';
+import { pickPdf, pickPdfs, savePdfToDownloads } from '../lib/files';
 
 export interface Doc {
   name: string;
@@ -162,12 +168,143 @@ export const actions = {
     return mutate(`Compressing (${preset})`, (b) => compressPdf(b, preset));
   },
 
+  /**
+   * Target-size compression. On mobile there is no image re-encoder (no canvas),
+   * so this can only losslessly re-save — it honestly reports when a requested
+   * size is below what lossless alone can achieve.
+   */
+  async compressToTarget(targetBytes: number) {
+    const doc = state.doc;
+    if (!doc || state.busy) return;
+    emit({ busy: 'Compressing to size' });
+    try {
+      const res = await compressToTargetSize(doc.bytes, targetBytes);
+      if (!res.ok) {
+        emit({ busy: null });
+        showNotice(res.message);
+        return;
+      }
+      const pageCount = await getPageCount(res.bytes);
+      emit({
+        busy: null,
+        selection: [],
+        doc: {
+          ...doc,
+          bytes: res.bytes,
+          pageCount,
+          dirty: true,
+          history: [...doc.history.slice(-(MAX_HISTORY - 1)), doc.bytes],
+          future: [],
+        },
+      });
+      showNotice(`Compressed to ${(res.size / (1024 * 1024)).toFixed(1)}MB.`);
+    } catch (err) {
+      setError(err);
+    }
+  },
+
+  normalize(size: PaperSize) {
+    return mutate(`Normalizing to ${size.toUpperCase()}`, (b) => normalizePageSize(b, size));
+  },
+
+  setTitle(title: string) {
+    return mutate('Set title', (b) => setTitle(b, title));
+  },
+
+  getCurrentTitle() {
+    const doc = state.doc;
+    if (!doc) return Promise.resolve('');
+    return getTitle(doc.bytes);
+  },
+
   watermark(text: string) {
     return mutate('Adding watermark', (b) => addWatermark(b, { text }));
   },
 
   pageNumbers(position: NumberPosition) {
     return mutate('Adding page numbers', (b) => addPageNumbers(b, { position }));
+  },
+
+  /** Rotate/delete/extract a single page (mobile long-press action sheet). */
+  rotatePage(index: number) {
+    return mutate('Rotating page', (b) => rotatePages(b, 90, [index]));
+  },
+  deletePage(index: number) {
+    const doc = state.doc;
+    if (doc && doc.pageCount <= 1) {
+      emit({ error: 'Cannot delete every page.' });
+      return Promise.resolve();
+    }
+    return mutate('Deleting page', (b) => deletePages(b, [index]));
+  },
+  async extractPageToDownloads(index: number) {
+    const doc = state.doc;
+    if (!doc || state.busy) return;
+    emit({ busy: 'Extracting page' });
+    try {
+      const out = await extractPages(doc.bytes, [index]);
+      const loc = await savePdfToDownloads(
+        doc.name.replace(/\.pdf$/i, '') + `-page-${index + 1}.pdf`,
+        out,
+      );
+      emit({ busy: null, selection: [] });
+      showNotice(`Saved ${loc}`);
+    } catch (err) {
+      setError(err);
+    }
+  },
+
+  /**
+   * Batch: pick N PDFs, apply one operation to each via a bounded pool
+   * (concurrency 2 on mobile), and save every result to Downloads. A failed
+   * file never aborts the rest.
+   */
+  async batch(op: 'compress-medium' | 'rotate90' | 'normalize-a4' | 'watermark') {
+    if (state.busy) return;
+    try {
+      const files = await pickPdfs();
+      if (!files.length) return;
+      emit({ busy: `Batch: 0/${files.length}` });
+      const apply = (b: Uint8Array): Promise<Uint8Array> => {
+        switch (op) {
+          case 'compress-medium':
+            return compressPdf(b, 'medium');
+          case 'rotate90':
+            return rotatePages(b, 90);
+          case 'normalize-a4':
+            return normalizePageSize(b, 'a4');
+          case 'watermark':
+            return addWatermark(b, { text: 'DRAFT' });
+        }
+      };
+      const suffix =
+        op === 'compress-medium'
+          ? 'compressed'
+          : op === 'rotate90'
+            ? 'rotated'
+            : op === 'normalize-a4'
+              ? 'a4'
+              : 'draft';
+      const summary = await runBatch(
+        files,
+        async (f) => {
+          const out = await apply(f.bytes);
+          await savePdfToDownloads(f.name.replace(/\.pdf$/i, '') + `-${suffix}.pdf`, out);
+          return out;
+        },
+        {
+          concurrency: 2,
+          onUpdate: (_item, s) => emit({ busy: `Batch: ${s.done}/${s.total}` }),
+        },
+      );
+      emit({ busy: null });
+      showNotice(
+        `${summary.succeeded} saved to Downloads` +
+          (summary.failed ? `, ${summary.failed} failed` : '') + '.',
+      );
+    } catch (err) {
+      setError(err);
+    }
   },
 
   undo() {

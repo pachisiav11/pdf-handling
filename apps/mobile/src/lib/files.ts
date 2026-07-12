@@ -36,6 +36,31 @@ export async function pickPdf(): Promise<PickedPdf | null> {
 }
 
 /**
+ * Multi-select variant for batch processing: pick N PDFs and return all of
+ * their bytes. Returns [] if the user cancels.
+ */
+export async function pickPdfs(): Promise<PickedPdf[]> {
+  try {
+    const files = await pick({ type: [types.pdf], allowMultiSelection: true });
+    const out: PickedPdf[] = [];
+    for (const file of files) {
+      const name = file.name ?? 'document.pdf';
+      const [copy] = await keepLocalCopy({
+        files: [{ uri: file.uri, fileName: name }],
+        destination: 'cachesDirectory',
+      });
+      if (copy.status !== 'success') continue;
+      const base64 = await RNBlobUtil.fs.readFile(stripScheme(copy.localUri), 'base64');
+      out.push({ name, bytes: base64ToBytes(base64) });
+    }
+    return out;
+  } catch (err) {
+    if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return [];
+    throw err;
+  }
+}
+
+/**
  * Write PDF bytes into the device's public Downloads folder via MediaStore so
  * the file is visible in the Files app. Returns a human-readable location.
  */
