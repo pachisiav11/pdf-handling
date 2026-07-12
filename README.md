@@ -4,7 +4,7 @@
 
 Fast, private, fully-offline PDF editing for desktop and Android, built from one shared TypeScript core. **No uploads, no accounts, no telemetry, no paywall.** Everything runs on your machine — the competitive angle against tools like iLovePDF is that there is no upload/download round-trip and nothing ever leaves your device.
 
-**Download:** grab the Windows installer and the Android APK from the [v1.0 release](https://github.com/pachisiav11/pdf-handling/releases/tag/v1.0.0).
+**Download:** grab the Windows installer and the Android APK from the [latest release](https://github.com/pachisiav11/pdf-handling/releases/latest).
 
 ## Screenshots
 
@@ -32,8 +32,9 @@ Android — the same identity, running the shared core in Hermes:
 **Editing** — text overlay, highlight/underline/strikethrough, freehand draw, image stamps, page numbers, watermark, crop, and **true redaction** (the page is rasterized and the original content stream is discarded — the removed text cannot be recovered, unlike a cosmetic black box).
 **Forms & signatures** — detect & fill AcroForm fields, create text-field/checkbox fields, and sign or initial by drawing, typing (handwriting font), or uploading an image (saved locally for reuse).
 **Conversion** — images ↔ PDF, PDF → images (PNG), PDF → text, OCR of scanned PDFs (Tesseract, English bundled), and **Office → PDF** (Word/Excel/PowerPoint, desktop-only via bundled LibreOffice).
+**Productivity (v1.1)** — a **command palette** (Ctrl+K) with the full audited keyboard-shortcut set, **target-size compression** (binary search, or a plain "can't reach that size" report), **batch processing** (one operation across many files via a bounded worker pool; one failure never aborts the rest), **page-size normalize** (uniform A4/Letter), a **title** metadata editor, **searchable OCR** (bakes an invisible selectable text layer over scanned pages), and labeled **session undo/redo**.
 
-**Android** — the mobile app runs the shared core in Hermes and covers the page toolset: merge, split, delete, extract, reorder, rotate, compress, watermark, page numbers, undo/redo, and save to Downloads. Editing/forms/OCR/conversion and rendered page previews are desktop-only in v1 (see PROGRESS.md → Phase 7 for why, and the v1.1 plan).
+**Android** — the mobile app runs the shared core in Hermes and covers the page toolset: merge, split, delete, extract, reorder, rotate, compress (incl. target size), watermark, page numbers, normalize, title, batch (multi-file → Downloads), a long-press per-page action sheet, undo/redo, and save to Downloads. Editing/forms/OCR/conversion and rendered page previews are desktop-only (see PROGRESS.md → Phase 7 for why).
 
 See [PROGRESS.md](PROGRESS.md) for exactly what's implemented per phase.
 
@@ -86,7 +87,7 @@ cd apps/mobile/android && ./gradlew assembleRelease
 # → apps/mobile/android/app/build/outputs/apk/release/app-release.apk
 ```
 
-The prebuilt APK is attached to the [v1.0 release](https://github.com/pachisiav11/pdf-handling/releases/tag/v1.0.0) alongside the desktop installer (it is not committed to git). It is signed with the debug keystore — fine for sideloading.
+The prebuilt APK is attached to the [latest release](https://github.com/pachisiav11/pdf-handling/releases/latest) alongside the desktop installer (it is not committed to git). It is signed with the debug keystore — fine for sideloading.
 
 > **pnpm + React Native note:** with pnpm's isolated `node_modules`, RN's Gradle build resolves a few packages by path that would otherwise be hidden in the virtual store. They are declared as direct devDependencies of `@pdfx/mobile` (`@react-native/gradle-plugin`, `@react-native/codegen`, `hermes-compiler`) and `react.hermesCommand` is pointed at the `hermes-compiler` package. This is why the app builds under pnpm without hoisting.
 
