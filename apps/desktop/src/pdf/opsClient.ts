@@ -48,6 +48,16 @@ export const ops = {
     call({ op: 'rotatePages', bytes: bytes.slice(), delta, indices }),
   compress: (bytes: Uint8Array, preset: 'low' | 'medium' | 'high') =>
     call({ op: 'compress', bytes: bytes.slice(), preset }),
+  compressTarget: (bytes: Uint8Array, targetBytes: number) =>
+    callRaw({ op: 'compressTarget', bytes: bytes.slice(), targetBytes }) as Promise<
+      import('@pdfx/core').TargetSizeResult
+    >,
+  normalize: (bytes: Uint8Array, size: import('@pdfx/core').PaperSize) =>
+    call({ op: 'normalize', bytes: bytes.slice(), size }),
+  setTitle: (bytes: Uint8Array, title: string) =>
+    call({ op: 'setTitle', bytes: bytes.slice(), title }),
+  searchableLayer: (bytes: Uint8Array, pages: import('@pdfx/core').OcrPageResult[]) =>
+    call({ op: 'searchableLayer', bytes: bytes.slice(), pages }),
   addText: (bytes: Uint8Array, items: import('@pdfx/core').TextItem[]) =>
     call({ op: 'addText', bytes: bytes.slice(), items }),
   addMarkups: (bytes: Uint8Array, markups: import('@pdfx/core').Markup[]) =>

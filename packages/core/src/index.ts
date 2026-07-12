@@ -15,6 +15,7 @@ export * from './convert/imageToPdf';
 export * from './convert/pdfToImage';
 export * from './convert/textExtract';
 export * from './convert/ocr';
+export * from './convert/searchableOcr';
 // convert/officeConvert is intentionally NOT exported here — it is Node-only
 // (spawns LibreOffice); desktop imports it via '@pdfx/core/convert/officeConvert'.
 export * from './merge';
@@ -23,6 +24,10 @@ export * from './pages';
 export * from './rotate';
 export * from './compress';
 export * from './view';
+export * from './normalize';
+export * from './metadata';
+export * from './history';
+export * from './batch';
 
 /** Trivial function proving the shared-package import path works from both apps (Phase 0). */
 export function ping(): string {

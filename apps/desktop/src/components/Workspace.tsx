@@ -2,25 +2,36 @@ import { useState } from 'react';
 import {
   actions,
   closeDoc,
+  closeDialog,
+  openDialog,
   setActive,
+  setPaletteOpen,
   useAppState,
   type DocState,
 } from '../state/store';
 import { openViaDialog, saveActiveDoc } from '../lib/files';
 import { ThumbnailGrid } from './ThumbnailGrid';
 import { Viewer } from './Viewer';
-import { MergeDialog, PageNumbersDialog, SplitDialog, WatermarkDialog } from './dialogs';
+import {
+  BatchDialog,
+  CompressDialog,
+  MergeDialog,
+  MetadataDialog,
+  NormalizeDialog,
+  PageNumbersDialog,
+  SplitDialog,
+  WatermarkDialog,
+} from './dialogs';
 import { FormsPanel } from './FormsPanel';
 import { SignatureDialog } from './SignatureDialog';
 import { ExportMenu, OcrDialog } from './ExportTools';
 
 export function Workspace({ doc }: { doc: DocState }) {
-  const { docs, selection, viewerPage } = useAppState();
-  const [dialog, setDialog] = useState<
-    'split' | 'merge' | 'pagenumbers' | 'watermark' | 'sign' | 'initials' | 'ocr' | null
-  >(null);
+  const { docs, selection, viewerPage, pendingDialog } = useAppState();
   const [formsOpen, setFormsOpen] = useState(false);
   const selCount = selection.length;
+  const undoLabel = doc.history[doc.history.length - 1]?.label;
+  const redoLabel = doc.future[doc.future.length - 1]?.label;
 
   return (
     <div className="workspace">
@@ -58,6 +69,14 @@ export function Workspace({ doc }: { doc: DocState }) {
 
         <button
           className="btn"
+          onClick={() => setPaletteOpen(true)}
+          title="Command palette — every action, searchable (Ctrl+K)"
+        >
+          Commands <kbd>Ctrl+K</kbd>
+        </button>
+
+        <button
+          className="btn"
           onClick={() => void actions.rotateSelection(90)}
           title="Rotate 90° clockwise (Ctrl+R)"
         >
@@ -79,35 +98,64 @@ export function Workspace({ doc }: { doc: DocState }) {
         >
           Extract <kbd>Ctrl+E</kbd>
         </button>
-        <button className="btn" disabled={docs.length < 2} onClick={() => setDialog('merge')}>
+        <button className="btn" disabled={docs.length < 2} onClick={() => openDialog('merge')}>
           Merge <kbd>Ctrl+M</kbd>
         </button>
-        <button className="btn" onClick={() => setDialog('split')}>
+        <button className="btn" onClick={() => openDialog('split')}>
           Split <kbd>Ctrl+Shift+S</kbd>
         </button>
-        <CompressMenu />
-        <button className="btn" onClick={() => setDialog('pagenumbers')}>
+        <button
+          className="btn"
+          onClick={() => openDialog('compress')}
+          title="Compress — presets or a target size (Ctrl+Shift+C)"
+        >
+          Compress <kbd>Ctrl+Shift+C</kbd>
+        </button>
+        <button className="btn" onClick={() => openDialog('pagenumbers')}>
           Page numbers
         </button>
-        <button className="btn" onClick={() => setDialog('watermark')} title="Add watermark (Ctrl+Shift+W)">
+        <button
+          className="btn"
+          onClick={() => openDialog('watermark')}
+          title="Add watermark (Ctrl+Shift+W)"
+        >
           Watermark <kbd>Ctrl+Shift+W</kbd>
+        </button>
+        <button className="btn" onClick={() => openDialog('normalize')}>
+          Normalize
+        </button>
+        <button className="btn" onClick={() => openDialog('metadata')}>
+          Properties
+        </button>
+        <button className="btn" onClick={() => openDialog('batch')}>
+          Batch
         </button>
         <button className="btn" onClick={() => setFormsOpen((o) => !o)}>
           Forms
         </button>
-        <button className="btn" onClick={() => setDialog('sign')}>
+        <button className="btn" onClick={() => openDialog('sign')}>
           Sign
         </button>
-        <button className="btn" onClick={() => setDialog('initials')}>
+        <button className="btn" onClick={() => openDialog('initials')}>
           Initials
         </button>
-        <ExportMenu onOcr={() => setDialog('ocr')} />
+        <ExportMenu onOcr={() => openDialog('ocr')} />
         <span className="spacer" />
 
-        <button className="btn" disabled={!doc.history.length} onClick={() => actions.undo()}>
+        <button
+          className="btn"
+          disabled={!doc.history.length}
+          onClick={() => actions.undo()}
+          title={undoLabel ? `Undo ${undoLabel}` : 'Undo'}
+        >
           Undo <kbd>Ctrl+Z</kbd>
         </button>
-        <button className="btn" disabled={!doc.future.length} onClick={() => actions.redo()}>
+        <button
+          className="btn"
+          disabled={!doc.future.length}
+          onClick={() => actions.redo()}
+          title={redoLabel ? `Redo ${redoLabel}` : 'Redo'}
+        >
           Redo
         </button>
         <button className="btn" onClick={() => void openViaDialog()}>
@@ -132,61 +180,17 @@ export function Workspace({ doc }: { doc: DocState }) {
         <span className="offline">● offline — nothing leaves this machine</span>
       </div>
 
-      {dialog === 'split' && <SplitDialog doc={doc} onClose={() => setDialog(null)} />}
-      {dialog === 'merge' && <MergeDialog onClose={() => setDialog(null)} />}
-      {dialog === 'pagenumbers' && <PageNumbersDialog onClose={() => setDialog(null)} />}
-      {dialog === 'watermark' && <WatermarkDialog onClose={() => setDialog(null)} />}
-      {dialog === 'sign' && <SignatureDialog slot="signature" onClose={() => setDialog(null)} />}
-      {dialog === 'initials' && <SignatureDialog slot="initials" onClose={() => setDialog(null)} />}
-      {dialog === 'ocr' && <OcrDialog doc={doc} onClose={() => setDialog(null)} />}
+      {pendingDialog === 'split' && <SplitDialog doc={doc} onClose={closeDialog} />}
+      {pendingDialog === 'merge' && <MergeDialog onClose={closeDialog} />}
+      {pendingDialog === 'pagenumbers' && <PageNumbersDialog onClose={closeDialog} />}
+      {pendingDialog === 'watermark' && <WatermarkDialog onClose={closeDialog} />}
+      {pendingDialog === 'compress' && <CompressDialog doc={doc} onClose={closeDialog} />}
+      {pendingDialog === 'normalize' && <NormalizeDialog onClose={closeDialog} />}
+      {pendingDialog === 'metadata' && <MetadataDialog doc={doc} onClose={closeDialog} />}
+      {pendingDialog === 'batch' && <BatchDialog onClose={closeDialog} />}
+      {pendingDialog === 'sign' && <SignatureDialog slot="signature" onClose={closeDialog} />}
+      {pendingDialog === 'initials' && <SignatureDialog slot="initials" onClose={closeDialog} />}
+      {pendingDialog === 'ocr' && <OcrDialog doc={doc} onClose={closeDialog} />}
     </div>
-  );
-}
-
-function CompressMenu() {
-  const [open, setOpen] = useState(false);
-  return (
-    <span style={{ position: 'relative' }}>
-      <button className="btn" onClick={() => setOpen((o) => !o)}>
-        Compress <kbd>Ctrl+Shift+C</kbd>
-      </button>
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '110%',
-            right: 0,
-            zIndex: 30,
-            background: 'var(--panel-2)',
-            border: '1px solid var(--line)',
-            borderRadius: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: 210,
-            boxShadow: 'var(--shadow)',
-          }}
-        >
-          {(
-            [
-              ['low', 'Low — lossless re-save'],
-              ['medium', 'Medium — images to 1600px'],
-              ['high', 'High — images to 1000px'],
-            ] as const
-          ).map(([preset, label]) => (
-            <button
-              key={preset}
-              className="btn"
-              style={{ border: 'none', borderRadius: 0, justifyContent: 'flex-start' }}
-              onClick={() => {
-                setOpen(false);
-                void actions.compress(preset);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-    </span>
   );
 }

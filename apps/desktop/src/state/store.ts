@@ -14,6 +14,12 @@ import type {
 import { ops } from '../pdf/opsClient';
 import { rasterizeRedactedPage, releaseRenderDoc } from '../pdf/render';
 
+/** A pre-op document snapshot with the label of the op that superseded it. */
+export interface Snapshot {
+  label: string;
+  bytes: Uint8Array;
+}
+
 export interface DocState {
   id: string;
   fileName: string;
@@ -21,9 +27,23 @@ export interface DocState {
   version: number; // bumped on every mutation; drives render-cache invalidation
   pageCount: number;
   dirty: boolean;
-  history: Uint8Array[]; // pre-op snapshots for undo (session-scoped)
-  future: Uint8Array[]; // redo stack
+  history: Snapshot[]; // pre-op snapshots for undo (session-scoped, labeled)
+  future: Snapshot[]; // redo stack
 }
+
+/** Dialogs routed through the store so shortcuts + command palette can open them. */
+export type DialogName =
+  | 'split'
+  | 'merge'
+  | 'pagenumbers'
+  | 'watermark'
+  | 'sign'
+  | 'initials'
+  | 'ocr'
+  | 'metadata'
+  | 'normalize'
+  | 'compress'
+  | 'batch';
 
 export interface AppState {
   docs: DocState[];
@@ -35,6 +55,12 @@ export interface AppState {
   notice: string | null;
   /** A signature/initials PNG waiting to be placed via the viewer's stamp mode. */
   stampRequest: { bytes: Uint8Array; label: string } | null;
+  /** Dialog requested via shortcut/palette/toolbar; the Workspace renders it. */
+  pendingDialog: DialogName | null;
+  /** Whether the Ctrl+K command palette is open. */
+  paletteOpen: boolean;
+  /** Redaction mode toggle (Ctrl+Shift+R), consumed by the Viewer. */
+  redactMode: boolean;
 }
 
 const MAX_HISTORY = 20;
@@ -48,6 +74,9 @@ let state: AppState = {
   error: null,
   notice: null,
   stampRequest: null,
+  pendingDialog: null,
+  paletteOpen: false,
+  redactMode: false,
 };
 
 const listeners = new Set<() => void>();
@@ -88,7 +117,13 @@ export async function openBytes(fileName: string, bytes: Uint8Array): Promise<vo
       history: [],
       future: [],
     };
-    emit({ docs: [...state.docs, doc], activeId: doc.id, selection: [], viewerPage: null });
+    emit({
+      docs: [...state.docs, doc],
+      activeId: doc.id,
+      selection: [],
+      viewerPage: null,
+      redactMode: false,
+    });
   } catch (err) {
     emit({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -133,6 +168,30 @@ export function clearError(): void {
   emit({ error: null });
 }
 
+// ---- dialog / command-palette / redaction routing ----
+
+export function openDialog(name: DialogName): void {
+  emit({ pendingDialog: name, paletteOpen: false });
+}
+
+export function closeDialog(): void {
+  emit({ pendingDialog: null });
+}
+
+export function setPaletteOpen(open: boolean): void {
+  emit({ paletteOpen: open });
+}
+
+export function toggleRedactMode(): void {
+  const next = !state.redactMode;
+  emit({
+    redactMode: next,
+    paletteOpen: false,
+    // Redaction happens on the rendered page, so make sure the viewer is open.
+    viewerPage: next && state.viewerPage === null ? (state.selection[0] ?? 0) : state.viewerPage,
+  });
+}
+
 export function showNotice(notice: string): void {
   emit({ notice });
   setTimeout(() => {
@@ -158,7 +217,7 @@ async function mutateActive(
       version: d.version + 1,
       pageCount,
       dirty: true,
-      history: [...d.history.slice(-(MAX_HISTORY - 1)), d.bytes],
+      history: [...d.history.slice(-(MAX_HISTORY - 1)), { label, bytes: d.bytes }],
       future: [],
     }));
     emit({
@@ -207,18 +266,54 @@ export const actions = {
   compress: (preset: 'low' | 'medium' | 'high') =>
     mutateActive(`Compressing (${preset})`, (b) => ops.compress(b, preset)),
 
+  /** Target-size compression (Phase 9). Reports plainly if it can't hit the size. */
+  compressToTarget: async (targetBytes: number) => {
+    const doc = activeDoc();
+    if (!doc || state.busy) return;
+    const human = `${(targetBytes / (1024 * 1024)).toFixed(1)}MB`;
+    emit({ busy: `Compressing to ~${human}` });
+    try {
+      const res = await ops.compressTarget(doc.bytes, targetBytes);
+      if (!res.ok) {
+        emit({ busy: null });
+        showNotice(res.message);
+        return;
+      }
+      const pageCount = await getPageCount(res.bytes);
+      updateDoc(doc.id, (d) => ({
+        ...d,
+        bytes: res.bytes,
+        version: d.version + 1,
+        pageCount,
+        dirty: true,
+        history: [...d.history.slice(-(MAX_HISTORY - 1)), { label: 'Compress to size', bytes: d.bytes }],
+        future: [],
+      }));
+      emit({ busy: null, selection: [] });
+      showNotice(`Compressed to ${(res.size / (1024 * 1024)).toFixed(1)}MB.`);
+    } catch (err) {
+      emit({ busy: null, error: err instanceof Error ? err.message : String(err) });
+    }
+  },
+
+  normalize: (size: import('@pdfx/core').PaperSize) =>
+    mutateActive(`Normalizing to ${size.toUpperCase()}`, (b) => ops.normalize(b, size)),
+
+  setTitle: (title: string) => mutateActive('Set title', (b) => ops.setTitle(b, title)),
+
   undo: () => {
     const doc = activeDoc();
     if (!doc || !doc.history.length) return;
-    const prev = doc.history[doc.history.length - 1]!;
-    getPageCount(prev).then((pageCount) => {
+    const snap = doc.history[doc.history.length - 1]!;
+    getPageCount(snap.bytes).then((pageCount) => {
       updateDoc(doc.id, (d) => ({
         ...d,
-        bytes: prev,
+        bytes: snap.bytes,
         version: d.version + 1,
         pageCount,
         history: d.history.slice(0, -1),
-        future: [...d.future, d.bytes],
+        // redo re-applies the op we just reversed — carry its label forward.
+        future: [...d.future, { label: snap.label, bytes: d.bytes }],
         dirty: true,
       }));
       emit({ selection: [], viewerPage: null });
@@ -227,15 +322,15 @@ export const actions = {
   redo: () => {
     const doc = activeDoc();
     if (!doc || !doc.future.length) return;
-    const next = doc.future[doc.future.length - 1]!;
-    getPageCount(next).then((pageCount) => {
+    const snap = doc.future[doc.future.length - 1]!;
+    getPageCount(snap.bytes).then((pageCount) => {
       updateDoc(doc.id, (d) => ({
         ...d,
-        bytes: next,
+        bytes: snap.bytes,
         version: d.version + 1,
         pageCount,
         future: d.future.slice(0, -1),
-        history: [...d.history, d.bytes],
+        history: [...d.history, { label: snap.label, bytes: d.bytes }],
         dirty: true,
       }));
       emit({ selection: [], viewerPage: null });

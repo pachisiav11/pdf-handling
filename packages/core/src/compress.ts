@@ -28,6 +28,12 @@ function isJpegImageStream(dict: PDFDict): boolean {
   return filter === PDFName.of('DCTDecode');
 }
 
+/** Image re-encode settings for one compression pass. */
+export interface ImageCompressOpts {
+  maxDimension: number;
+  quality: number;
+}
+
 /**
  * Compress a PDF. All presets re-save with object streams (lossless);
  * medium/high additionally downscale/re-encode embedded JPEGs when a
@@ -38,8 +44,20 @@ export async function compressPdf(
   preset: CompressPreset,
   reencoder?: ImageReencoder,
 ): Promise<Uint8Array> {
+  return compressWithImageOpts(bytes, PRESET_IMAGE_OPTS[preset], reencoder);
+}
+
+/**
+ * Lower-level compressor shared by presets and target-size mode: re-encodes
+ * embedded JPEGs with the given `imageOpts` (null = lossless re-save only) and
+ * saves with object streams. Used by {@link compressToTargetSize}'s search.
+ */
+export async function compressWithImageOpts(
+  bytes: Uint8Array,
+  imageOpts: ImageCompressOpts | null,
+  reencoder?: ImageReencoder,
+): Promise<Uint8Array> {
   const doc = await loadPdf(bytes);
-  const imageOpts = PRESET_IMAGE_OPTS[preset];
 
   if (imageOpts && reencoder) {
     const replacements: Array<[PDFRef, PDFRawStream]> = [];
@@ -63,6 +81,68 @@ export async function compressPdf(
   }
 
   return doc.save({ useObjectStreams: true });
+}
+
+/** Map the 0..1 quality knob to concrete image settings (low knob = smaller). */
+export function qualityKnobToImageOpts(knob: number): ImageCompressOpts {
+  const q = Math.max(0, Math.min(1, knob));
+  return {
+    maxDimension: Math.round(600 + q * (2200 - 600)), // 600px (max squeeze) → 2200px
+    quality: 0.3 + q * (0.92 - 0.3), // JPEG q 0.30 → 0.92
+  };
+}
+
+export type TargetSizeResult =
+  | { ok: true; bytes: Uint8Array; size: number; knob: number }
+  | { ok: false; smallestSize: number; smallestBytes: Uint8Array; message: string };
+
+/**
+ * Target-size compression via binary search over a single quality knob
+ * (build guide "Compression algorithm" v1.1). Finds the highest quality whose
+ * output still fits under `targetBytes`, capped at `maxIterations` passes. If
+ * even maximum compression can't reach the target, returns `ok:false` with the
+ * smallest achievable size and a plain message rather than an oversized file.
+ *
+ * Needs a `reencoder` to actually shrink image bytes; without one it can only
+ * do a single lossless re-save and will report if that alone can't hit target.
+ */
+export async function compressToTargetSize(
+  bytes: Uint8Array,
+  targetBytes: number,
+  reencoder?: ImageReencoder,
+  maxIterations = 6,
+): Promise<TargetSizeResult> {
+  const fmt = (n: number) => `${(n / (1024 * 1024)).toFixed(1)}MB`;
+
+  // Max-compression pass first: if the smallest we can produce still exceeds the
+  // target, there's no point searching — report the floor.
+  const smallest = await compressWithImageOpts(bytes, qualityKnobToImageOpts(0), reencoder);
+  if (smallest.length > targetBytes) {
+    return {
+      ok: false,
+      smallestSize: smallest.length,
+      smallestBytes: smallest,
+      message: `Can't reach ${fmt(targetBytes)} — smallest possible is ${fmt(smallest.length)}.`,
+    };
+  }
+
+  // The floor already fits; binary-search upward for the highest knob that stays
+  // under target (closest to the requested size without going over).
+  let lo = 0;
+  let hi = 1;
+  let best = { bytes: smallest, size: smallest.length, knob: 0 };
+  const iters = Math.max(1, maxIterations - 1); // one pass already spent on the floor
+  for (let i = 0; i < iters; i++) {
+    const mid = (lo + hi) / 2;
+    const out = await compressWithImageOpts(bytes, qualityKnobToImageOpts(mid), reencoder);
+    if (out.length <= targetBytes) {
+      best = { bytes: out, size: out.length, knob: mid };
+      lo = mid; // room to raise quality
+    } else {
+      hi = mid; // too big, lower quality
+    }
+  }
+  return { ok: true, bytes: best.bytes, size: best.size, knob: best.knob };
 }
 
 /** Read width/height from a JPEG's SOF marker (no full decode). */

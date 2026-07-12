@@ -19,24 +19,31 @@ import {
   addTextItems,
   addWatermark,
   compressPdf,
+  compressToTargetSize,
   cropPages,
   deletePages,
   extractPages,
   mergePdfs,
+  normalizePageSize,
   reorderPages,
   replacePagesWithImages,
   rotatePages,
+  setTitle,
   splitByRange,
   splitToSinglePages,
+  addSearchableTextLayer,
   type CompressPreset,
   type ImageReencoder,
   type Markup,
+  type OcrPageResult,
   type PageImageReplacement,
   type PageNumberOptions,
+  type PaperSize,
   type Rect,
   type RotationDelta,
   type Stamp,
   type Stroke,
+  type TargetSizeResult,
   type TextItem,
   type WatermarkOptions,
 } from '@pdfx/core';
@@ -50,6 +57,10 @@ export type OpRequest =
   | { id: number; op: 'reorderPages'; bytes: Uint8Array; newOrder: number[] }
   | { id: number; op: 'rotatePages'; bytes: Uint8Array; delta: RotationDelta; indices?: number[] }
   | { id: number; op: 'compress'; bytes: Uint8Array; preset: CompressPreset }
+  | { id: number; op: 'compressTarget'; bytes: Uint8Array; targetBytes: number }
+  | { id: number; op: 'normalize'; bytes: Uint8Array; size: PaperSize }
+  | { id: number; op: 'setTitle'; bytes: Uint8Array; title: string }
+  | { id: number; op: 'searchableLayer'; bytes: Uint8Array; pages: OcrPageResult[] }
   | { id: number; op: 'addText'; bytes: Uint8Array; items: TextItem[] }
   | { id: number; op: 'addMarkups'; bytes: Uint8Array; markups: Markup[] }
   | { id: number; op: 'addStrokes'; bytes: Uint8Array; strokes: Stroke[] }
@@ -65,7 +76,7 @@ export type OpRequest =
 
 export type OpResponse =
   | { id: number; ok: true; bytes: Uint8Array }
-  | { id: number; ok: true; data: FieldInfo[] }
+  | { id: number; ok: true; data: FieldInfo[] | TargetSizeResult }
   | { id: number; ok: false; message: string };
 
 /** JPEG re-encoder backed by OffscreenCanvas (available in workers). */
@@ -86,10 +97,20 @@ const reencoder: ImageReencoder = async (jpegBytes, { maxDimension, quality }) =
   }
 };
 
-async function run(req: OpRequest): Promise<Uint8Array | { data: FieldInfo[] }> {
+async function run(
+  req: OpRequest,
+): Promise<Uint8Array | { data: FieldInfo[] | TargetSizeResult }> {
   switch (req.op) {
     case 'listFields':
       return { data: await listFormFields(req.bytes) };
+    case 'compressTarget':
+      return { data: await compressToTargetSize(req.bytes, req.targetBytes, reencoder) };
+    case 'normalize':
+      return normalizePageSize(req.bytes, req.size);
+    case 'setTitle':
+      return setTitle(req.bytes, req.title);
+    case 'searchableLayer':
+      return addSearchableTextLayer(req.bytes, req.pages);
     case 'fillFields':
       return fillFormFields(req.bytes, req.values);
     case 'createFields':

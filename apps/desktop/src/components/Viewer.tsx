@@ -56,7 +56,14 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
   const [confirmRedact, setConfirmRedact] = useState(false);
   const [fieldDraft, setFieldDraft] = useState<{ rect: Rect; name: string; kind: 'text' | 'checkbox' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { stampRequest } = useAppState();
+  const { stampRequest, redactMode } = useAppState();
+
+  // Global redaction-mode toggle (Ctrl+Shift+R / command palette): mirror it
+  // into the viewer's local edit mode so the shortcut actually arms the tool.
+  useEffect(() => {
+    if (redactMode) setMode('redact');
+    else setMode((m) => (m === 'redact' ? null : m));
+  }, [redactMode]);
 
   // Signature/initials placement request from the toolbar dialogs.
   useEffect(() => {

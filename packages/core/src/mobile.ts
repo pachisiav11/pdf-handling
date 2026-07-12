@@ -17,6 +17,23 @@ export { mergePdfs } from './merge';
 export { parsePageRanges, splitByRange, splitToSinglePages } from './split';
 export { deletePages, extractPages, reorderPages } from './pages';
 export { rotatePages, type RotationDelta } from './rotate';
-export { compressPdf, type CompressPreset } from './compress';
+export {
+  compressPdf,
+  compressToTargetSize,
+  type CompressPreset,
+  type TargetSizeResult,
+} from './compress';
 export { addWatermark, type WatermarkOptions } from './editing/watermark';
 export { addPageNumbers, type PageNumberOptions, type NumberPosition } from './editing/pageNumbers';
+
+// Phase 9 (v1.1) — all pure pdf-lib / plain-JS, safe on Hermes.
+export { normalizePageSize, type PaperSize } from './normalize';
+export { getTitle, setTitle } from './metadata';
+export { DocumentHistory, type HistoryLimits } from './history';
+export {
+  runBatch,
+  type BatchItem,
+  type BatchItemStatus,
+  type BatchSummary,
+  type BatchOptions,
+} from './batch';
