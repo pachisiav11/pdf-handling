@@ -187,3 +187,38 @@ Known gaps / deferred:
 - CI's desktop installer ships without bundled LibreOffice (size); the released installer built locally with `--office` is the full-offline one.
 
 Offline verification: n/a for CI itself (it builds artifacts); the produced artifacts are the same fully-offline desktop app and self-contained release APK verified in Phases 6 and 7.
+
+
+## Phase 9 — Good-to-have enhancements (v1.1) (2026-07-12)
+
+Shared core (`@pdfx/core`) — all new logic unit-tested (11 new tests in `phase9.test.ts`; 54 total, green):
+- `history.ts` — `DocumentHistory`, a session-scoped undo/redo command stack. Snapshot-based (every op in this app is a whole-document transform, so snapshots are the uniform, correct inverse — the guide explicitly permits this), capped by both entry count (default 50) and a byte budget (default 200 MB); oldest states drop first. Carries a per-state label for "Undo <op>" UI.
+- `compress.ts` — `compressToTargetSize`: binary search over a single 0–1 quality knob (mapped to JPEG quality + a dimension cap). Evaluates the max-compression floor first; if the target is below it, returns `ok:false` with a plain "Can't reach 2.0MB — smallest possible is 4.1MB" message instead of an oversized file. Otherwise climbs toward the requested size without exceeding it, capped at 6 passes. Refactored the preset path onto a shared `compressWithImageOpts`.
+- `batch.ts` — `runBatch`: bounded worker pool (queue, not fire-all-at-once). Per-item `queued → running → done | failed(reason)` with an `onUpdate` callback; a thrown item is captured and never aborts the rest. Returns `{items, succeeded, failed}`.
+- `normalize.ts` — `normalizePageSize` (A4/Letter): embeds each source page into a fixed-size page, scaled to fit and centered, orientation-aware.
+- `metadata.ts` — title-only `getTitle`/`setTitle` (scoped per the guide; no author/subject/etc.).
+- `convert/searchableOcr.ts` — `addSearchableTextLayer`: draws an invisible (opacity-0) text layer from OCR word boxes so the page looks identical but becomes selectable/searchable; `ocrToSearchablePdf` one-shots OCR + layer.
+
+Desktop:
+- **Command palette (Ctrl+K)** — every action, searchable, each showing its shortcut; filters as you type, runs the top match on Enter. Verified in the renderer preview (render, filter, click-run, Enter-run).
+- **Keyboard shortcuts** — the full audited table: Ctrl+K palette, Ctrl+M merge, Ctrl+Shift+S split, Ctrl+R rotate, Ctrl+D/Del delete, Ctrl+E extract, Ctrl+Shift+W watermark, Ctrl+Shift+C compress, Ctrl+Shift+R redact toggle, Ctrl+Z/Ctrl+Shift+Z undo/redo, Escape. Dialogs now route through the store so palette + shortcuts + toolbar share them.
+- **New tools**: Compress dialog (preset OR target size), Normalize (standalone + a merge checkbox), Document properties (title), Batch process (multi-file → per-file status list → zip), and "Make searchable PDF" from the OCR dialog. Undo/redo carry labels (tooltip "Undo Rotating all page(s)").
+- Verified in preview: metadata title round-trip (reopened dialog reads back the saved title from mutated bytes), target-size compress UI, labeled undo, and a full 2-file batch producing a valid zip ("PK") — zero console errors.
+
+Mobile (Android):
+- Compress modal gains a **target-size** field (lossless-only on mobile — no canvas re-encoder — so it reports honestly when a size is unreachable).
+- **Normalize** (A4/Letter), **Title** (get/set), and **Batch** (multi-select via `pickPdfs`, `runBatch` at concurrency 2, each result saved to Downloads) modals + toolbar buttons.
+- **Long-press a page tile → action sheet** (rotate / extract→Downloads / delete this page) — the mobile equivalent of the desktop command palette (per the guide).
+- Session undo/redo already present since Phase 7. Typechecks clean; Metro bundle builds (Hermes surface intact).
+
+Acceptance (build guide):
+- Target-size compression gets within margin of a requested size on a real image PDF, or clearly reports it can't — both covered by `phase9.test.ts` (half-size target succeeds under budget; 1 KB target reports the floor).
+- Batch with a deliberately-corrupt file: `runBatch` test feeds a non-PDF among good files → 3 succeeded, 1 failed, all items terminal.
+- Undo steps back through a real multi-op sequence: `rotate → delete → watermark → undo ×3` returns to the original bytes (test asserts `history.current` equals the original and page count walks 4→4→5→original).
+
+Known gaps / honest notes:
+- Mobile target-size compression can only losslessly re-save (no image re-encoder on Hermes), so for image-heavy PDFs it will usually report "can't reach" unless the target is generous. Desktop target-size does real image downsampling.
+- The desktop ops worker is a single worker, so batch `concurrency` bounds the queue but doesn't truly parallelize CPU work; the abstraction and per-file reporting are correct.
+- Searchable-OCR text placement uses word boxes at font-size ≈ box height; it's selectable/searchable, not pixel-perfect glyph alignment (invisible, so visually irrelevant).
+
+Offline verification: yes — every Phase 9 addition is pure local computation (pdf-lib / plain JS); no network in any path.
