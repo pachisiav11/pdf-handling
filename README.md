@@ -4,6 +4,8 @@
 
 Fast, private, fully-offline PDF editing for desktop and Android, built from one shared TypeScript core. **No uploads, no accounts, no telemetry, no paywall.** Everything runs on your machine — the competitive angle against tools like iLovePDF is that there is no upload/download round-trip and nothing ever leaves your device.
 
+**Download:** grab the Windows installer and the Android APK from the [v1.0 release](https://github.com/pachisiav11/pdf-handling/releases/tag/v1.0.0).
+
 ## Screenshots
 
 Desktop (Electron) — the prepress light-table: graphite desk, paper-white page thumbnails, CMYK ink accents, registration crop-marks as the selection state.
@@ -84,7 +86,7 @@ cd apps/mobile/android && ./gradlew assembleRelease
 # → apps/mobile/android/app/build/outputs/apk/release/app-release.apk
 ```
 
-The prebuilt APK is attached to the [Android release](https://github.com/pachisiav11/pdf-handling/releases/tag/v1.0.0-android) (it is not committed to git). It is signed with the debug keystore — fine for sideloading.
+The prebuilt APK is attached to the [v1.0 release](https://github.com/pachisiav11/pdf-handling/releases/tag/v1.0.0) alongside the desktop installer (it is not committed to git). It is signed with the debug keystore — fine for sideloading.
 
 > **pnpm + React Native note:** with pnpm's isolated `node_modules`, RN's Gradle build resolves a few packages by path that would otherwise be hidden in the virtual store. They are declared as direct devDependencies of `@pdfx/mobile` (`@react-native/gradle-plugin`, `@react-native/codegen`, `hermes-compiler`) and `react.hermesCommand` is pointed at the `hermes-compiler` package. This is why the app builds under pnpm without hoisting.
 
