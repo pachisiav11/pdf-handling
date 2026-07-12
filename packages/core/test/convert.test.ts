@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { imagesToPdf } from '../src/convert/imageToPdf';
 import { createNodeCanvasEncoder, pdfToImages } from '../src/convert/pdfToImage';
@@ -59,11 +60,17 @@ describe('extractPlainText', () => {
   });
 });
 
-describe('ocrPdf (acceptance: scanned page → roughly correct text)', () => {
+// The OCR acceptance test needs Tesseract's `eng.traineddata`, a large binary
+// that is gitignored and fetched locally by `scripts/fetch-binaries.mjs`. When
+// it's absent (e.g. the lean CI gate that doesn't fetch binaries), skip rather
+// than hang tesseract.js on a missing language file.
+const TESSERACT_DIR = join(__dirname, '..', '..', '..', 'apps', 'desktop', 'resources', 'tesseract');
+const hasTessData = existsSync(join(TESSERACT_DIR, 'eng.traineddata'));
+
+describe.skipIf(!hasTessData)('ocrPdf (acceptance: scanned page → roughly correct text)', () => {
   it('reads text out of an image-only PDF', async () => {
     const encoder = await createNodeCanvasEncoder();
-    const langPath = join(__dirname, '..', '..', '..', 'apps', 'desktop', 'resources', 'tesseract');
-    const results = await ocrPdf(await scannedPdf(), { lang: 'eng', langPath }, encoder);
+    const results = await ocrPdf(await scannedPdf(), { lang: 'eng', langPath: TESSERACT_DIR }, encoder);
     expect(results).toHaveLength(1);
     const text = results[0]!.text.toLowerCase();
     expect(text).toContain('quick brown fox');
