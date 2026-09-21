@@ -12,9 +12,10 @@ import {
   actions,
   clearError,
   closeDialog,
+  getState,
   openDialog,
   setPaletteOpen,
-  toggleRedactMode,
+  showNotice,
   useAppState,
 } from './state/store';
 import { openDroppedFiles, openViaDialog, saveActiveDoc } from './lib/files';
@@ -58,13 +59,17 @@ export function App() {
         actions.redo();
       } else if (mod && k === 'm') {
         e.preventDefault();
-        if (state.docs.length >= 2) openDialog('merge');
+        if (getState().docs.length >= 2) openDialog('merge');
       } else if (mod && k === 'r' && e.shiftKey) {
         e.preventDefault();
-        toggleRedactMode();
+        showNotice('Redaction isn’t available — the iLovePDF API workflow does not support it.');
       } else if (mod && k === 'r') {
         e.preventDefault();
-        void actions.rotateSelection(90);
+        if (getState().selection.length) {
+          showNotice('Rotating selected pages isn’t available — clear the selection to rotate the whole document.');
+        } else {
+          void actions.rotateSelection(90);
+        }
       } else if (mod && k === 'w' && e.shiftKey) {
         e.preventDefault();
         openDialog('watermark');
@@ -82,7 +87,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [state.docs.length]);
+  }, []);
 
   return (
     <div

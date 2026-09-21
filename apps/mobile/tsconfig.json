@@ -5,7 +5,8 @@
     "types": [],
     "paths": {
       "@pdfx/core": ["../../packages/core/src/index.ts"],
-      "@pdfx/core/*": ["../../packages/core/src/*"]
+      "@pdfx/core/*": ["../../packages/core/src/*"],
+      "@pdfx/ilovepdf-api": ["../../packages/ilovepdf-api/src/index.ts"]
     }
   },
   "include": ["src", "index.js"]

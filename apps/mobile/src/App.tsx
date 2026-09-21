@@ -21,7 +21,7 @@ import {
   useStore,
   type State,
 } from './state/store';
-import type { CompressPreset, NumberPosition, PaperSize } from '@pdfx/core/mobile';
+import type { CompressPreset, NumberPosition } from '@pdfx/core/mobile';
 
 const C = {
   desk: '#1c1f24',
@@ -79,13 +79,13 @@ function Home() {
   return (
     <View style={styles.home}>
       <Text style={styles.logo}>PDFX</Text>
-      <Text style={styles.tagline}>Offline PDF tools · nothing leaves your device</Text>
+      <Text style={styles.tagline}>Cloud PDF tools · processed via the iLovePDF API</Text>
       <Pressable style={styles.cta} onPress={() => void openViaPicker()}>
         <Text style={styles.ctaText}>Open a PDF</Text>
       </Pressable>
       <Text style={styles.homeHint}>
-        Merge · Split · Rotate · Delete · Reorder · Extract · Compress · Watermark · Page numbers ·
-        Normalize · Title · Batch
+        Merge · Split · Rotate · Delete · Extract · Compress · Watermark · Page numbers · Title ·
+        Batch
       </Text>
     </View>
   );
@@ -95,7 +95,7 @@ function DocScreen({ state }: { state: State }) {
   const doc = state.doc!;
   const sel = state.selection;
   const [modal, setModal] = useState<
-    null | 'split' | 'watermark' | 'pagenumbers' | 'compress' | 'normalize' | 'title' | 'batch'
+    null | 'split' | 'watermark' | 'pagenumbers' | 'compress' | 'title' | 'batch'
   >(null);
   const [pageSheet, setPageSheet] = useState<number | null>(null);
 
@@ -145,7 +145,7 @@ function DocScreen({ state }: { state: State }) {
           {sel.length > 0 ? ` · ${sel.length} selected` : ''} ·{' '}
           {(doc.bytes.length / 1024 / 1024).toFixed(2)} MB
         </Text>
-        <Text style={styles.offline}>● offline</Text>
+        <Text style={styles.offline}>☁ cloud</Text>
       </View>
 
       {/* Toolbar */}
@@ -154,7 +154,7 @@ function DocScreen({ state }: { state: State }) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.toolbar}
       >
-        <Tool label="Rotate" onPress={() => void actions.rotate(90)} />
+        <Tool label="Rotate all" onPress={() => void actions.rotate(90)} />
         <Tool
           label="Delete"
           tone="danger"
@@ -162,17 +162,11 @@ function DocScreen({ state }: { state: State }) {
           onPress={() => void actions.deleteSelected()}
         />
         <Tool label="Extract" disabled={!sel.length} onPress={() => void actions.extractToDownloads()} />
-        <Tool
-          label="Reorder→front"
-          disabled={!sel.length}
-          onPress={() => void actions.moveSelectedToFront()}
-        />
         <Tool label="Merge" onPress={() => void actions.mergeAnother()} />
         <Tool label="Split" onPress={() => setModal('split')} />
         <Tool label="Compress" onPress={() => setModal('compress')} />
         <Tool label="Watermark" onPress={() => setModal('watermark')} />
         <Tool label="Page #s" onPress={() => setModal('pagenumbers')} />
-        <Tool label="Normalize" onPress={() => setModal('normalize')} />
         <Tool label="Title" onPress={() => setModal('title')} />
         <Tool label="Batch" onPress={() => setModal('batch')} />
         <Tool label="Undo" disabled={!doc.history.length} onPress={() => actions.undo()} />
@@ -182,10 +176,7 @@ function DocScreen({ state }: { state: State }) {
       {modal === 'split' && <SplitModal max={doc.pageCount} onClose={() => setModal(null)} />}
       {modal === 'watermark' && <WatermarkModal onClose={() => setModal(null)} />}
       {modal === 'pagenumbers' && <PageNumbersModal onClose={() => setModal(null)} />}
-      {modal === 'compress' && (
-        <CompressModal currentBytes={doc.bytes.length} onClose={() => setModal(null)} />
-      )}
-      {modal === 'normalize' && <NormalizeModal onClose={() => setModal(null)} />}
+      {modal === 'compress' && <CompressModal onClose={() => setModal(null)} />}
       {modal === 'title' && <TitleModal onClose={() => setModal(null)} />}
       {modal === 'batch' && <BatchModal onClose={() => setModal(null)} />}
       {pageSheet !== null && (
@@ -328,18 +319,17 @@ function PageNumbersModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function CompressModal({ currentBytes, onClose }: { currentBytes: number; onClose: () => void }) {
+function CompressModal({ onClose }: { onClose: () => void }) {
   const presets: Array<[CompressPreset, string]> = [
     ['low', 'Low — lossless re-save'],
     ['medium', 'Medium — lossless on mobile'],
     ['high', 'High — lossless on mobile'],
   ];
-  const currentMb = currentBytes / (1024 * 1024);
-  const [targetMb, setTargetMb] = useState((currentMb * 0.7).toFixed(1));
   return (
     <ModalShell title="Compress" onClose={onClose}>
       <Text style={styles.modalHint}>
-        Image downscaling is desktop-only; mobile does a lossless re-save.
+        Image downscaling is desktop-only; mobile does a lossless re-save. Target-size compression
+        isn't offered by the iLovePDF API workflow.
       </Text>
       {presets.map(([preset, label]) => (
         <Pressable
@@ -353,52 +343,6 @@ function CompressModal({ currentBytes, onClose }: { currentBytes: number; onClos
           <Text style={styles.choiceText}>{label}</Text>
         </Pressable>
       ))}
-      <Text style={styles.modalHint}>Or target a size (MB) — current {currentMb.toFixed(2)} MB:</Text>
-      <View style={styles.rowInline}>
-        <TextInput
-          style={[styles.input, styles.inlineInput]}
-          value={targetMb}
-          onChangeText={setTargetMb}
-          keyboardType="decimal-pad"
-          placeholder="MB"
-          placeholderTextColor={C.dim}
-        />
-        <Pressable
-          style={styles.modalConfirm}
-          onPress={() => {
-            const mb = parseFloat(targetMb);
-            onClose();
-            if (mb > 0) void actions.compressToTarget(Math.round(mb * 1024 * 1024));
-          }}
-        >
-          <Text style={styles.modalConfirmText}>Target</Text>
-        </Pressable>
-      </View>
-      <ModalActions onClose={onClose} />
-    </ModalShell>
-  );
-}
-
-function NormalizeModal({ onClose }: { onClose: () => void }) {
-  const sizes: Array<[PaperSize, string]> = [
-    ['a4', 'A4'],
-    ['letter', 'US Letter'],
-  ];
-  return (
-    <ModalShell title="Normalize page size" onClose={onClose}>
-      <Text style={styles.modalHint}>Rescales every page to a uniform size, centered.</Text>
-      {sizes.map(([size, label]) => (
-        <Pressable
-          key={size}
-          style={styles.choiceRow}
-          onPress={() => {
-            onClose();
-            void actions.normalize(size);
-          }}
-        >
-          <Text style={styles.choiceText}>{label}</Text>
-        </Pressable>
-      ))}
       <ModalActions onClose={onClose} />
     </ModalShell>
   );
@@ -406,32 +350,21 @@ function NormalizeModal({ onClose }: { onClose: () => void }) {
 
 function TitleModal({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState('');
-  const [loaded, setLoaded] = useState(false);
-  React.useEffect(() => {
-    let alive = true;
-    actions.getCurrentTitle().then((t) => {
-      if (alive) {
-        setTitle(t);
-        setLoaded(true);
-      }
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
   return (
     <ModalShell title="Document title" onClose={onClose}>
+      <Text style={styles.modalHint}>
+        The API workflow can't read the current title — enter the new one to set it.
+      </Text>
       <TextInput
         style={styles.input}
         value={title}
         onChangeText={setTitle}
-        placeholder={loaded ? '(no title set)' : 'Loading…'}
+        placeholder="New title"
         placeholderTextColor={C.dim}
       />
       <ModalActions
         onClose={onClose}
         confirmLabel="Save title"
-        disabled={!loaded}
         onConfirm={() => {
           onClose();
           void actions.setTitle(title);
@@ -445,7 +378,6 @@ function BatchModal({ onClose }: { onClose: () => void }) {
   const ops: Array<[Parameters<typeof actions.batch>[0], string]> = [
     ['compress-medium', 'Compress each'],
     ['rotate90', 'Rotate each 90°'],
-    ['normalize-a4', 'Normalize each to A4'],
     ['watermark', 'Watermark each "DRAFT"'],
   ];
   return (
@@ -474,7 +406,6 @@ function BatchModal({ onClose }: { onClose: () => void }) {
 /** Long-press action sheet for a single page (mobile command-palette equivalent). */
 function PageActionSheet({ index, onClose }: { index: number; onClose: () => void }) {
   const rows: Array<[string, () => void, boolean?]> = [
-    ['Rotate this page 90°', () => void actions.rotatePage(index)],
     ['Extract this page → Downloads', () => void actions.extractPageToDownloads(index)],
     ['Delete this page', () => void actions.deletePage(index), true],
   ];
@@ -671,8 +602,6 @@ const styles = StyleSheet.create({
   },
   choiceRow: { paddingVertical: 12, paddingHorizontal: 8, borderRadius: 6, backgroundColor: C.panel2 },
   choiceText: { color: C.ink, fontSize: 15 },
-  rowInline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  inlineInput: { flex: 1 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 4 },
   modalCancel: { paddingVertical: 10, paddingHorizontal: 16 },
   modalCancelText: { color: C.dim, fontWeight: '600' },

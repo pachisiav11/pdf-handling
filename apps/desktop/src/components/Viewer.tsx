@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { TextLayer } from 'pdfjs-dist';
 import type { Markup, MarkupKind, Rect, Stamp, Stroke, TextItem } from '@pdfx/core';
@@ -6,6 +6,7 @@ import { getRenderDoc, renderPage } from '../pdf/render';
 import {
   actions,
   clearStampRequest,
+  getState,
   setViewerPage,
   showNotice,
   useAppState,
@@ -57,6 +58,19 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
   const [fieldDraft, setFieldDraft] = useState<{ rect: Rect; name: string; kind: 'text' | 'checkbox' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { stampRequest, redactMode } = useAppState();
+
+  // Belt-and-braces: revoke any pending stamp preview URL if the viewer
+  // unmounts (e.g. "← Grid") without the user hitting Apply/Cancel.
+  const stampRef = useRef<PendingStamp | null>(null);
+  useEffect(() => {
+    stampRef.current = stamp;
+  }, [stamp]);
+  useEffect(
+    () => () => {
+      if (stampRef.current) URL.revokeObjectURL(stampRef.current.url);
+    },
+    [],
+  );
 
   // Global redaction-mode toggle (Ctrl+Shift+R / command palette): mirror it
   // into the viewer's local edit mode so the shortcut actually arms the tool.
@@ -285,7 +299,11 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
   const confirmAndRedact = async () => {
     setConfirmRedact(false);
     await actions.applyRedaction([{ pageIndex: page, rects }]);
-    showNotice('Redacted. This page is now an image and no longer searchable.');
+    // applyRedaction swallows its own errors into state.error — only claim
+    // success if it didn't set one.
+    if (!getState().error) {
+      showNotice('Redacted. This page is now an image and no longer searchable.');
+    }
     discard(false);
   };
 
@@ -309,9 +327,13 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
     });
   };
 
+  const UNAVAILABLE = 'Not available — this tool requires local processing, which the iLovePDF API workflow does not support.';
+
   const toolBtn = (m: Exclude<EditMode, null>, label: string) => (
     <button
       className={`btn${mode === m ? ' primary' : ''}`}
+      disabled
+      title={UNAVAILABLE}
       onClick={() => {
         if (mode === m) {
           discard();
@@ -349,6 +371,9 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
         {toolBtn('crop', 'Crop')}
         {toolBtn('redact', 'Redact')}
         {toolBtn('field', 'Field')}
+        <span className="hint" title={UNAVAILABLE}>
+          Page editing tools aren’t available via the iLovePDF API.
+        </span>
         {mode === 'highlight' && (
           <select className="select" value={markupKind} onChange={(e) => setMarkupKind(e.target.value as MarkupKind)}>
             <option value="highlight">Highlight</option>

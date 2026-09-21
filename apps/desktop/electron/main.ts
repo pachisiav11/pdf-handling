@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { readFile, writeFile } from 'fs/promises';
 import { basename, join } from 'path';
+import { createHmac } from 'crypto';
 import { createNodeCanvasEncoder, ocrPdf, type OcrPageResult } from '@pdfx/core';
 import { findSoffice, officeToPdf, OFFICE_EXTENSIONS } from '@pdfx/core/convert/officeConvert';
 
@@ -9,6 +10,63 @@ function resourcesDir(): string {
   return app.isPackaged
     ? join(process.resourcesPath, 'resources')
     : join(app.getAppPath(), 'resources');
+}
+
+const ILOVE_PDF_PUBLIC_KEY = 'project_public_3e6ebf6c7fe3800ecb67d9305ac66106_5TVOU661190bc6af1630f8f86d5ae8d465313';
+
+function base64Url(value: string): string {
+  return Buffer.from(value).toString('base64url');
+}
+
+/**
+ * Development reads the ignored repository .env; a packaged app reads the
+ * user-owned %APPDATA%/PDFX/iloveapi.json. Neither file is bundled or exposed
+ * to the renderer.
+ */
+async function privateApiKey(): Promise<string> {
+  const configFile = app.isPackaged
+    ? join(app.getPath('userData'), 'iloveapi.json')
+    : join(app.getAppPath(), '..', '..', '.env');
+  let text: string;
+  try {
+    text = await readFile(configFile, 'utf8');
+  } catch {
+    throw new Error(
+      app.isPackaged
+        ? `Missing iLovePDF configuration. Create ${configFile} with a privateKey field.`
+        : `Missing ${configFile}. Add ILOVEPDF_PRIVATE_KEY=your-key before starting the desktop app.`,
+    );
+  }
+  if (app.isPackaged) {
+    try {
+      const parsed = JSON.parse(text) as { privateKey?: unknown };
+      if (typeof parsed.privateKey === 'string' && parsed.privateKey.trim()) return parsed.privateKey.trim();
+    } catch {
+      // The message below gives the expected format without leaking contents.
+    }
+    throw new Error(
+      `The iLovePDF private key in ${configFile} is missing or invalid. Expected JSON like {"privateKey": "your-key"}.`,
+    );
+  }
+  const match = text.match(/^ILOVEPDF_PRIVATE_KEY\s*=\s*(.+)\s*$/m);
+  if (match?.[1]) return match[1].trim().replace(/^['"]|['"]$/g, '');
+  throw new Error(`ILOVEPDF_PRIVATE_KEY is missing or malformed in ${configFile}. Expected a line like ILOVEPDF_PRIVATE_KEY=your-key.`);
+}
+
+/** Creates a one-hour HS256 JWT with the claims required by iLovePDF. */
+async function signedApiToken(): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const encodedHeader = base64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const encodedPayload = base64Url(JSON.stringify({
+    jti: ILOVE_PDF_PUBLIC_KEY,
+    iss: 'api.ilovepdf.com',
+    iat: now - 5,
+    nbf: now - 5,
+    exp: now + 55 * 60,
+  }));
+  const unsigned = `${encodedHeader}.${encodedPayload}`;
+  const signature = createHmac('sha256', await privateApiKey()).update(unsigned).digest('base64url');
+  return `${unsigned}.${signature}`;
 }
 
 // ---- local-only error log (no network, ever) -------------------------------
@@ -32,6 +90,7 @@ async function logLocal(kind: string, detail: string): Promise<void> {
 process.on('uncaughtException', (err) => void logLocal('uncaughtException', err.stack ?? String(err)));
 process.on('unhandledRejection', (reason) => void logLocal('unhandledRejection', String(reason)));
 ipcMain.on('log:error', (_e, message: string) => void logLocal('renderer', message));
+ipcMain.handle('ilovepdf:token', () => signedApiToken());
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -46,6 +105,7 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
 
@@ -146,7 +206,9 @@ ipcMain.handle('ocr:run', async (event, bytes: ArrayBuffer): Promise<OcrPageResu
       {
         lang: 'eng',
         langPath: join(resourcesDir(), 'tesseract'),
-        onProgress: (done, total) => event.sender.send('ocr:progress', { done, total }),
+        onProgress: (done, total) => {
+          if (!event.sender.isDestroyed()) event.sender.send('ocr:progress', { done, total });
+        },
       },
       encoder,
     );
@@ -216,6 +278,10 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}).catch((err) => {
+  void logLocal('whenReady', err instanceof Error ? (err.stack ?? err.message) : String(err));
+  dialog.showErrorBox('PDFX failed to start', err instanceof Error ? err.message : String(err));
+  app.quit();
 });
 
 app.on('window-all-closed', () => {

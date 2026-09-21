@@ -1,5 +1,10 @@
 # Build Prompt: Offline PDF Editor (Desktop + Mobile)
 
+> **Historical document.** This is the original build prompt that produced PDFX v1.0/v1.1 as a
+> fully-offline, local-processing application. The project has since been migrated to perform all
+> document mutation through the iLovePDF REST API, so the offline-first requirement below no longer
+> describes the shipped app. Kept for provenance; see `README.md` for current behaviour.
+
 Paste everything below this line into the build agent.
 
 ---

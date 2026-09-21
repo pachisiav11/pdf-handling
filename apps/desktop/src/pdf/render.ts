@@ -66,7 +66,9 @@ export function renderPage(
 
 /** Rasterize a page at 2x with redaction rects painted black → PNG bytes.
     Rects are PDF points, bottom-left origin. Runs in the renderer where the
-    pdf.js document cache lives; the worker does the page replacement. */
+    pdf.js document cache lives. Unused while redaction is disabled (the
+    iLovePDF API workflow doesn't support page replacement) — kept in case
+    that op becomes available again. */
 export async function rasterizeRedactedPage(
   docId: string,
   version: number,

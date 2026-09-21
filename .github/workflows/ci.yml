@@ -34,6 +34,12 @@ jobs:
       - name: Core unit tests
         run: pnpm --filter @pdfx/core test
 
+      - name: iLovePDF API client tests (mocked fetch, no API credits used)
+        run: pnpm --filter @pdfx/ilovepdf-api test
+
+      - name: Typecheck (iLovePDF API client)
+        run: pnpm --filter @pdfx/ilovepdf-api typecheck
+
       - name: Typecheck (core)
         run: pnpm --filter @pdfx/core typecheck
 

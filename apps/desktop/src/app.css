@@ -463,7 +463,7 @@
   font-family: var(--font-mono);
   font-size: 11.5px;
 }
-.statusbar .offline {
+.statusbar .cloud-status {
   color: var(--cyan);
 }
 .statusbar .spacer { flex: 1; }

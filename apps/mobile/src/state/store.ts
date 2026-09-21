@@ -1,25 +1,22 @@
 import { useSyncExternalStore } from 'react';
 import {
   getPageCount,
-  rotatePages,
-  deletePages,
-  extractPages,
-  reorderPages,
-  mergePdfs,
-  splitByRange,
-  compressPdf,
-  addWatermark,
-  addPageNumbers,
-  compressToTargetSize,
-  normalizePageSize,
-  setTitle,
-  getTitle,
   runBatch,
   type RotationDelta,
   type CompressPreset,
   type NumberPosition,
-  type PaperSize,
 } from '@pdfx/core/mobile';
+import {
+  addPageNumbers,
+  addWatermark,
+  compressPdf,
+  deletePages,
+  extractPages,
+  mergePdfs,
+  rotatePages,
+  setTitle,
+  splitByRange,
+} from '../lib/operations';
 import { pickPdf, pickPdfs, savePdfToDownloads } from '../lib/files';
 
 export interface Doc {
@@ -61,8 +58,16 @@ export function useStore(): State {
 
 export const getState = (): State => state;
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === 'object' && typeof (err as { message?: unknown }).message === 'string') {
+    return (err as { message: string }).message;
+  }
+  return String(err);
+}
+
 function setError(err: unknown): void {
-  emit({ busy: null, error: err instanceof Error ? err.message : String(err) });
+  emit({ busy: null, error: errorMessage(err) });
 }
 
 export function clearError(): void {
@@ -111,10 +116,14 @@ export function closeDoc(): void {
   emit({ doc: null, selection: [], notice: null });
 }
 
-/** Run a transform that returns new bytes for the active doc, with undo snapshot. */
-async function mutate(label: string, fn: (bytes: Uint8Array) => Promise<Uint8Array>): Promise<void> {
+/**
+ * Run a transform that returns new bytes for the active doc, with undo snapshot.
+ * Returns whether it succeeded, so callers that chain follow-up work (e.g. a
+ * success notice) don't run it after a failed mutation.
+ */
+async function mutate(label: string, fn: (bytes: Uint8Array) => Promise<Uint8Array>): Promise<boolean> {
   const doc = state.doc;
-  if (!doc || state.busy) return;
+  if (!doc || state.busy) return false;
   emit({ busy: label });
   try {
     const nextBytes = await fn(doc.bytes);
@@ -131,17 +140,17 @@ async function mutate(label: string, fn: (bytes: Uint8Array) => Promise<Uint8Arr
         future: [],
       },
     });
+    return true;
   } catch (err) {
     setError(err);
+    return false;
   }
 }
 
 export const actions = {
+  /** The iLovePDF workflow only supports rotating the whole document, not a selection. */
   rotate(delta: RotationDelta) {
-    const sel = state.selection;
-    return mutate(sel.length ? `Rotating ${sel.length} page(s)` : 'Rotating all pages', (b) =>
-      rotatePages(b, delta, sel.length ? sel : undefined),
-    );
+    return mutate('Rotating all pages', (b) => rotatePages(b, delta));
   },
 
   deleteSelected() {
@@ -154,67 +163,12 @@ export const actions = {
     return mutate(`Deleting ${sel.length} page(s)`, (b) => deletePages(b, sel));
   },
 
-  /** Move selected pages to the front, preserving order; save nothing — in place. */
-  moveSelectedToFront() {
-    const doc = state.doc;
-    const sel = state.selection;
-    if (!doc || !sel.length) return Promise.resolve();
-    const rest = Array.from({ length: doc.pageCount }, (_, i) => i).filter((i) => !sel.includes(i));
-    const order = [...sel, ...rest];
-    return mutate('Reordering pages', (b) => reorderPages(b, order));
-  },
-
   compress(preset: CompressPreset) {
     return mutate(`Compressing (${preset})`, (b) => compressPdf(b, preset));
   },
 
-  /**
-   * Target-size compression. On mobile there is no image re-encoder (no canvas),
-   * so this can only losslessly re-save — it honestly reports when a requested
-   * size is below what lossless alone can achieve.
-   */
-  async compressToTarget(targetBytes: number) {
-    const doc = state.doc;
-    if (!doc || state.busy) return;
-    emit({ busy: 'Compressing to size' });
-    try {
-      const res = await compressToTargetSize(doc.bytes, targetBytes);
-      if (!res.ok) {
-        emit({ busy: null });
-        showNotice(res.message);
-        return;
-      }
-      const pageCount = await getPageCount(res.bytes);
-      emit({
-        busy: null,
-        selection: [],
-        doc: {
-          ...doc,
-          bytes: res.bytes,
-          pageCount,
-          dirty: true,
-          history: [...doc.history.slice(-(MAX_HISTORY - 1)), doc.bytes],
-          future: [],
-        },
-      });
-      showNotice(`Compressed to ${(res.size / (1024 * 1024)).toFixed(1)}MB.`);
-    } catch (err) {
-      setError(err);
-    }
-  },
-
-  normalize(size: PaperSize) {
-    return mutate(`Normalizing to ${size.toUpperCase()}`, (b) => normalizePageSize(b, size));
-  },
-
   setTitle(title: string) {
     return mutate('Set title', (b) => setTitle(b, title));
-  },
-
-  getCurrentTitle() {
-    const doc = state.doc;
-    if (!doc) return Promise.resolve('');
-    return getTitle(doc.bytes);
   },
 
   watermark(text: string) {
@@ -225,10 +179,9 @@ export const actions = {
     return mutate('Adding page numbers', (b) => addPageNumbers(b, { position }));
   },
 
-  /** Rotate/delete/extract a single page (mobile long-press action sheet). */
-  rotatePage(index: number) {
-    return mutate('Rotating page', (b) => rotatePages(b, 90, [index]));
-  },
+  /** Delete/extract a single page (mobile long-press action sheet). Per-page
+   * rotate and reorder aren't offered — the iLovePDF workflow only rotates
+   * the whole document and has no reorder endpoint. */
   deletePage(index: number) {
     const doc = state.doc;
     if (doc && doc.pageCount <= 1) {
@@ -259,7 +212,7 @@ export const actions = {
    * (concurrency 2 on mobile), and save every result to Downloads. A failed
    * file never aborts the rest.
    */
-  async batch(op: 'compress-medium' | 'rotate90' | 'normalize-a4' | 'watermark') {
+  async batch(op: 'compress-medium' | 'rotate90' | 'watermark') {
     if (state.busy) return;
     try {
       const files = await pickPdfs();
@@ -271,20 +224,12 @@ export const actions = {
             return compressPdf(b, 'medium');
           case 'rotate90':
             return rotatePages(b, 90);
-          case 'normalize-a4':
-            return normalizePageSize(b, 'a4');
           case 'watermark':
             return addWatermark(b, { text: 'DRAFT' });
         }
       };
       const suffix =
-        op === 'compress-medium'
-          ? 'compressed'
-          : op === 'rotate90'
-            ? 'rotated'
-            : op === 'normalize-a4'
-              ? 'a4'
-              : 'draft';
+        op === 'compress-medium' ? 'compressed' : op === 'rotate90' ? 'rotated' : 'draft';
       const summary = await runBatch(
         files,
         async (f) => {
@@ -310,39 +255,43 @@ export const actions = {
   undo() {
     const doc = state.doc;
     if (!doc || !doc.history.length) return;
-    const prev = doc.history[doc.history.length - 1];
-    getPageCount(prev).then((pageCount) => {
-      emit({
-        selection: [],
-        doc: {
-          ...doc,
-          bytes: prev,
-          pageCount,
-          dirty: true,
-          history: doc.history.slice(0, -1),
-          future: [...doc.future, doc.bytes],
-        },
-      });
-    });
+    const prev = doc.history[doc.history.length - 1]!;
+    getPageCount(prev)
+      .then((pageCount) => {
+        emit({
+          selection: [],
+          doc: {
+            ...doc,
+            bytes: prev,
+            pageCount,
+            dirty: true,
+            history: doc.history.slice(0, -1),
+            future: [...doc.future, doc.bytes],
+          },
+        });
+      })
+      .catch(setError);
   },
 
   redo() {
     const doc = state.doc;
     if (!doc || !doc.future.length) return;
-    const next = doc.future[doc.future.length - 1];
-    getPageCount(next).then((pageCount) => {
-      emit({
-        selection: [],
-        doc: {
-          ...doc,
-          bytes: next,
-          pageCount,
-          dirty: true,
-          future: doc.future.slice(0, -1),
-          history: [...doc.history, doc.bytes],
-        },
-      });
-    });
+    const next = doc.future[doc.future.length - 1]!;
+    getPageCount(next)
+      .then((pageCount) => {
+        emit({
+          selection: [],
+          doc: {
+            ...doc,
+            bytes: next,
+            pageCount,
+            dirty: true,
+            future: doc.future.slice(0, -1),
+            history: [...doc.history, doc.bytes],
+          },
+        });
+      })
+      .catch(setError);
   },
 
   /** Pick a second PDF and append it to the active document. */
@@ -352,8 +301,8 @@ export const actions = {
     try {
       const picked = await pickPdf();
       if (!picked) return;
-      await mutate(`Merging ${picked.name}`, (b) => mergePdfs([b, picked.bytes]));
-      showNotice(`Merged ${picked.name}`);
+      const ok = await mutate(`Merging ${picked.name}`, (b) => mergePdfs([b, picked.bytes]));
+      if (ok) showNotice(`Merged ${picked.name}`);
     } catch (err) {
       setError(err);
     }

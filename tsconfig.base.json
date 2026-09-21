@@ -17,6 +17,7 @@
     "paths": {
       "@pdfx/core": ["packages/core/src/index.ts"],
       "@pdfx/core/*": ["packages/core/src/*"],
+      "@pdfx/ilovepdf-api": ["packages/ilovepdf-api/src/index.ts"],
       "@pdfx/ui": ["packages/ui-components/src/index.ts"],
       "@pdfx/ui/*": ["packages/ui-components/src/*"]
     }

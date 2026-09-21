@@ -222,3 +222,61 @@ Known gaps / honest notes:
 - Searchable-OCR text placement uses word boxes at font-size ≈ box height; it's selectable/searchable, not pixel-perfect glyph alignment (invisible, so visually irrelevant).
 
 Offline verification: yes — every Phase 9 addition is pure local computation (pdf-lib / plain JS); no network in any path.
+
+## Bug-fix pass — iLovePDF migration hardening (2026-09-07)
+
+Not a build_guide phase. A single pass over the half-finished API migration to make the app
+actually run, done with four parallel agents over disjoint file areas plus a reconciliation sweep.
+
+Blockers that made the app non-functional:
+
+- The renderer's Content-Security-Policy was `default-src 'self'` with no `connect-src`, so every
+  call to iLovePDF was blocked by the browser. Nothing could process at all. Now allows
+  `https://*.ilovepdf.com` (per-task worker subdomains need the wildcard).
+- `@pdfx/ilovepdf-api` was declared as a dependency but had no Vite alias and no node_modules link,
+  so the renderer bundle could not resolve the import. Aliased in both Vite configs and linked.
+- `pnpm-lock.yaml` had no entry for the new workspace package, so CI's `pnpm install
+  --frozen-lockfile` was guaranteed to fail. Regenerated.
+- `opsClient.ts` read `window.pdfx.apiToken` at module scope, throwing at import time in browser
+  dev and blanking the app. Now resolved lazily per call.
+
+API protocol corrections, verified against the iLovePDF docs and the official client:
+
+- Metadata is `metas`, not `meta` — setting a title was a silent no-op.
+- `PageNumberOptions.startAt` is the 0-based first page to stamp, not the first label value; it was
+  wired to `starting_number` and shifted every label.
+- `{total}` was replaced only once instead of globally in page-number format strings.
+- `globalThis.fetch` was stored unbound, so calling it as a method threw "Illegal invocation".
+- Error envelopes are nested (`error.param.files[].error`); real failures surfaced as bare status
+  codes. Now walked recursively.
+- `Blob`/`FormData` were replaced with a hand-built multipart body: React Native throws on
+  typed-array Blob parts and drops the filename argument, so uploads could not work on Android.
+- Added request timeouts, retry on 429/5xx, one re-auth on 401, task-status polling, and
+  de-duplicated token fetches (an N-file task previously triggered N auth calls).
+- `splitAll` returns a ZIP; the contract now says so and reports the single-page case explicitly.
+
+Dead-end UI removed. Roughly twenty controls across both apps still invoked operations that the
+API cannot perform and that reject at runtime — after the user had drawn the box, typed the text,
+or picked the file. Every one is now hidden or disabled with a reason. The mobile title dialog was
+worse than a dead end: it gated Save on a read that always rejected, so Save could never enable.
+
+Error handling: save failures after a successful operation reported nothing at all; the OCR dialog
+span forever on a rejection; several `.then()` chains had no `.catch`; a failed merge showed both an
+error and a success notice. Fixed at the call sites, plus busy-state try/finally gaps.
+
+Honesty: the README claimed "No uploads", "nothing ever leaves your device", and pitched the app
+against iLovePDF while being iLovePDF. Corrected across README, both apps' UI copy, and the Android
+manifest comment. `build_guide.md` is marked historical.
+
+Tests: added 24 mocked-fetch tests for the API client covering request order, region and task-server
+routing, auth precedence, multipart body structure and binary fidelity, nested error unwrapping,
+retry/re-auth/timeout, and archive detection. No API credits consumed. Wired into CI.
+
+Verification: typecheck clean across all five workspaces; lint clean; 54 core tests and 24 client
+tests pass; `electron-vite build` and the Metro Android bundle both succeed; the renderer was loaded
+in a browser and rendered correctly with the corrected copy.
+
+Offline verification: no longer applicable — the app requires network for every document operation.
+
+Not verified: no live API call has been made. The signed-JWT path, the hand-rolled multipart upload
+against the real endpoint, the Electron installer, and the Android APK all remain untested.

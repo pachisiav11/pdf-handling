@@ -199,7 +199,13 @@ export function showNotice(notice: string): void {
   }, 3500);
 }
 
-// ---- mutations (all via worker; snapshot for undo) ----
+/** Generic busy toggle for flows that don't produce document bytes directly
+    (e.g. Office conversion) but still need the global busy overlay. */
+export function setBusy(label: string | null): void {
+  emit({ busy: label });
+}
+
+// ---- mutations (all via the iLovePDF API; snapshot for undo) ----
 
 async function mutateActive(
   label: string,
@@ -305,36 +311,40 @@ export const actions = {
     const doc = activeDoc();
     if (!doc || !doc.history.length) return;
     const snap = doc.history[doc.history.length - 1]!;
-    getPageCount(snap.bytes).then((pageCount) => {
-      updateDoc(doc.id, (d) => ({
-        ...d,
-        bytes: snap.bytes,
-        version: d.version + 1,
-        pageCount,
-        history: d.history.slice(0, -1),
-        // redo re-applies the op we just reversed — carry its label forward.
-        future: [...d.future, { label: snap.label, bytes: d.bytes }],
-        dirty: true,
-      }));
-      emit({ selection: [], viewerPage: null });
-    });
+    getPageCount(snap.bytes)
+      .then((pageCount) => {
+        updateDoc(doc.id, (d) => ({
+          ...d,
+          bytes: snap.bytes,
+          version: d.version + 1,
+          pageCount,
+          history: d.history.slice(0, -1),
+          // redo re-applies the op we just reversed — carry its label forward.
+          future: [...d.future, { label: snap.label, bytes: d.bytes }],
+          dirty: true,
+        }));
+        emit({ selection: [], viewerPage: null });
+      })
+      .catch((err) => emit({ error: err instanceof Error ? err.message : String(err) }));
   },
   redo: () => {
     const doc = activeDoc();
     if (!doc || !doc.future.length) return;
     const snap = doc.future[doc.future.length - 1]!;
-    getPageCount(snap.bytes).then((pageCount) => {
-      updateDoc(doc.id, (d) => ({
-        ...d,
-        bytes: snap.bytes,
-        version: d.version + 1,
-        pageCount,
-        future: d.future.slice(0, -1),
-        history: [...d.history, { label: snap.label, bytes: d.bytes }],
-        dirty: true,
-      }));
-      emit({ selection: [], viewerPage: null });
-    });
+    getPageCount(snap.bytes)
+      .then((pageCount) => {
+        updateDoc(doc.id, (d) => ({
+          ...d,
+          bytes: snap.bytes,
+          version: d.version + 1,
+          pageCount,
+          future: d.future.slice(0, -1),
+          history: [...d.history, { label: snap.label, bytes: d.bytes }],
+          dirty: true,
+        }));
+        emit({ selection: [], viewerPage: null });
+      })
+      .catch((err) => emit({ error: err instanceof Error ? err.message : String(err) }));
   },
 
   markSaved: (id: string) => updateDoc(id, (d) => ({ ...d, dirty: false })),

@@ -1,8 +1,18 @@
-# PDFX — offline-first PDF editor
+# PDFX — PDF editor for desktop and Android
 
 [![CI](https://github.com/pachisiav11/pdf-handling/actions/workflows/ci.yml/badge.svg)](https://github.com/pachisiav11/pdf-handling/actions/workflows/ci.yml)
 
-Fast, private, fully-offline PDF editing for desktop and Android, built from one shared TypeScript core. **No uploads, no accounts, no telemetry, no paywall.** Everything runs on your machine — the competitive angle against tools like iLovePDF is that there is no upload/download round-trip and nothing ever leaves your device.
+A fast, keyboard-driven PDF editor for Windows and Android, built from one shared TypeScript core.
+
+> **Your documents are uploaded for processing.** As of the current version, every document
+> mutation (merge, split, rotate, compress, watermark, page numbers, image→PDF) is performed by
+> the [iLovePDF REST API](https://www.iloveapi.com/). Files are uploaded over HTTPS to iLovePDF's
+> servers, processed there, and downloaded back. They are **not** processed on your machine, and
+> using the app consumes iLovePDF API credits. Earlier versions of PDFX processed everything
+> locally; that is no longer true, and the claims below have been corrected accordingly.
+
+Page rendering, thumbnails, page counts, and view state are still computed locally. Office→PDF
+conversion and OCR on the desktop app still run locally via bundled LibreOffice and Tesseract.
 
 **Download:** grab the Windows installer and the Android APK from the [latest release](https://github.com/pachisiav11/pdf-handling/releases/latest).
 
@@ -16,27 +26,67 @@ Android — the same identity, running the shared core in Hermes:
 |---|---|
 | ![PDFX Android home](docs/screenshots/mobile-home.png) | ![PDFX Android page grid](docs/screenshots/mobile-pages.png) |
 
-## Why it's different from iLovePDF & friends
+## Where your files go
 
-| | iLovePDF (web) | PDFX |
-|---|---|---|
-| Where files go | Uploaded to a server | Never leave your machine |
-| Works offline | No | Yes — every core tool |
-| Speed | Upload → process → download | Instant, local (≤1s on typical docs) |
-| Accounts / paywall | Yes for many tools | None |
-| Telemetry | Yes | None (errors log to a local file only) |
+| | PDFX |
+|---|---|
+| Document processing | iLovePDF REST API, over HTTPS |
+| Local-only work | Page rendering, thumbnails, page counts, desktop Office→PDF, desktop OCR |
+| Accounts | None in the app; an iLovePDF project key is required to build/run it |
+| API credits | Consumed per operation, against the configured iLovePDF project |
+| Telemetry | None — errors are written to a local log file only |
 
 ## Features
 
-**Core** — merge, split (by range or into individual pages), delete/extract/reorder pages, rotate, compress (3 presets), view with zoom.
-**Editing** — text overlay, highlight/underline/strikethrough, freehand draw, image stamps, page numbers, watermark, crop, and **true redaction** (the page is rasterized and the original content stream is discarded — the removed text cannot be recovered, unlike a cosmetic black box).
-**Forms & signatures** — detect & fill AcroForm fields, create text-field/checkbox fields, and sign or initial by drawing, typing (handwriting font), or uploading an image (saved locally for reuse).
-**Conversion** — images ↔ PDF, PDF → images (PNG), PDF → text, OCR of scanned PDFs (Tesseract, English bundled), and **Office → PDF** (Word/Excel/PowerPoint, desktop-only via bundled LibreOffice).
-**Productivity (v1.1)** — a **command palette** (Ctrl+K) with the full audited keyboard-shortcut set, **target-size compression** (binary search, or a plain "can't reach that size" report), **batch processing** (one operation across many files via a bounded worker pool; one failure never aborts the rest), **page-size normalize** (uniform A4/Letter), a **title** metadata editor, **searchable OCR** (bakes an invisible selectable text layer over scanned pages), and labeled **session undo/redo**.
+### Working (processed by the iLovePDF API)
 
-**Android** — the mobile app runs the shared core in Hermes and covers the page toolset: merge, split, delete, extract, reorder, rotate, compress (incl. target size), watermark, page numbers, normalize, title, batch (multi-file → Downloads), a long-press per-page action sheet, undo/redo, and save to Downloads. Editing/forms/OCR/conversion and rendered page previews are desktop-only (see PROGRESS.md → Phase 7 for why).
+Merge, split by range, split into individual pages, delete pages, extract pages, rotate all pages,
+compress (3 presets), page numbers, text watermark, images → PDF, and set the document title.
 
-See [PROGRESS.md](PROGRESS.md) for exactly what's implemented per phase.
+### Working locally
+
+Page rendering, thumbnails and zoom; PDF → images; PDF → text; OCR of scanned PDFs (Tesseract,
+English bundled, desktop only); Office → PDF (Word/Excel/PowerPoint, desktop only, via bundled
+LibreOffice); session undo/redo; the command palette (Ctrl+K); and batch processing, which now
+dispatches each file's operation to the API.
+
+### Not currently available
+
+These shipped in v1.0/v1.1 as local operations and are **disabled** in the current build, because
+the iLovePDF API offers no equivalent: page reordering, rotating only selected pages, target-size
+compression, page-size normalization, searchable OCR text layers, text overlay, highlight /
+underline / strikethrough, freehand drawing, image stamps and signatures, image watermarks,
+cropping, redaction, and AcroForm field detection / filling / creation.
+
+**Android** — merge, split, delete, extract, rotate all pages, compress preset, text watermark,
+page numbers, title, batch (multi-file → Downloads), a long-press per-page action sheet, undo/redo,
+and save to Downloads. Rendered page previews, editing, forms, OCR and conversion are desktop-only.
+
+See [PROGRESS.md](PROGRESS.md) for what was implemented per phase.
+
+## iLovePDF API configuration
+
+The app cannot process anything without an iLovePDF project key pair. The **public** project ID is
+committed in the source on purpose; the **private** key must never be committed, bundled, or sent to
+a client.
+
+Development (repository root `.env`, gitignored):
+
+```env
+ILOVEPDF_PRIVATE_KEY=your-private-key
+ILOVEPDF_REGION=in
+```
+
+Installed desktop app — create `%APPDATA%\PDFX\iloveapi.json`:
+
+```json
+{ "privateKey": "your-private-key" }
+```
+
+The Electron main process signs a short-lived HS256 JWT with the private key and exposes only that
+token to the renderer over IPC. The Android app never holds the private key; it uses iLovePDF's
+public `/v1/auth` flow. Apply IP/domain restrictions in the iLovePDF dashboard where your plan
+supports them.
 
 ## Repository layout
 
@@ -82,7 +132,7 @@ pnpm install
 pnpm --filter @pdfx/mobile start          # terminal 1 — Metro
 pnpm --filter @pdfx/mobile android        # terminal 2 — build + install
 
-# self-contained release APK (bundled JS, runs offline, no Metro):
+# self-contained release APK (bundled JS, no Metro; PDF operations still need network):
 cd apps/mobile/android && ./gradlew assembleRelease
 # → apps/mobile/android/app/build/outputs/apk/release/app-release.apk
 ```

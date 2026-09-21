@@ -109,19 +109,13 @@ export function PageNumbersDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Watermark dialog: diagonal text or image on every page. */
+/** Watermark dialog: diagonal text on every page. */
 export function WatermarkDialog({ onClose }: { onClose: () => void }) {
-  const [kind, setKind] = useState<'text' | 'image'>('text');
   const [text, setText] = useState('CONFIDENTIAL');
   const [opacity, setOpacity] = useState(0.15);
-  const [image, setImage] = useState<{ bytes: Uint8Array; type: 'png' | 'jpg'; name: string } | null>(null);
 
   const run = async () => {
-    if (kind === 'text') {
-      await actions.applyWatermark({ text, opacity });
-    } else if (image) {
-      await actions.applyWatermark({ imageBytes: image.bytes, imageType: image.type, opacity });
-    }
+    await actions.applyWatermark({ text, opacity });
     onClose();
   };
 
@@ -130,30 +124,11 @@ export function WatermarkDialog({ onClose }: { onClose: () => void }) {
       <div className="dialog cropmarks" onClick={(e) => e.stopPropagation()}>
         <h2>Add watermark</h2>
         <p className="hint">Applied diagonally to every page.</p>
-        <label>
-          <input type="radio" checked={kind === 'text'} onChange={() => setKind('text')} /> Text
-        </label>
-        {kind === 'text' && (
-          <input className="input" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
-        )}
-        <label>
-          <input type="radio" checked={kind === 'image'} onChange={() => setKind('image')} /> Image
-        </label>
-        {kind === 'image' && (
-          <input
-            type="file"
-            accept="image/png,image/jpeg"
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              if (!f) return;
-              setImage({
-                bytes: new Uint8Array(await f.arrayBuffer()),
-                type: f.type === 'image/png' ? 'png' : 'jpg',
-                name: f.name,
-              });
-            }}
-          />
-        )}
+        <label>Text</label>
+        <input className="input" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
+        <p className="hint" title="Image watermarking requires local processing, which the iLovePDF API workflow does not support.">
+          Image watermarks aren’t available via the iLovePDF API — text only.
+        </p>
         <label>Opacity — {Math.round(opacity * 100)}%</label>
         <input
           type="range"
@@ -166,7 +141,7 @@ export function WatermarkDialog({ onClose }: { onClose: () => void }) {
           <button className="btn" onClick={onClose}>Cancel</button>
           <button
             className="btn primary"
-            disabled={kind === 'text' ? !text.trim() : !image}
+            disabled={!text.trim()}
             onClick={() => void run()}
           >
             Apply watermark
@@ -181,8 +156,6 @@ export function WatermarkDialog({ onClose }: { onClose: () => void }) {
 export function MergeDialog({ onClose }: { onClose: () => void }) {
   const { docs } = useAppState();
   const [order, setOrder] = useState<string[]>(docs.map((d) => d.id));
-  const [normalize, setNormalize] = useState(false);
-  const [size, setSize] = useState<PaperSize>('a4');
 
   const move = (id: string, dir: -1 | 1) => {
     setOrder((cur) => {
@@ -200,10 +173,7 @@ export function MergeDialog({ onClose }: { onClose: () => void }) {
       .map((id) => docs.find((d) => d.id === id))
       .filter((d): d is DocState => !!d)
       .map((d) => d.bytes);
-    const bytes = await runExportOp('Merging', async () => {
-      const merged = await ops.merge(sources);
-      return normalize ? ops.normalize(merged, size) : merged;
-    });
+    const bytes = await runExportOp('Merging', () => ops.merge(sources));
     if (bytes) {
       onClose();
       const saved = await saveBytesAs('merged.pdf', bytes, 'pdf');
@@ -236,20 +206,6 @@ export function MergeDialog({ onClose }: { onClose: () => void }) {
             );
           })}
         </ul>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={normalize}
-            onChange={(e) => setNormalize(e.target.checked)}
-          />
-          Normalize every page to a uniform size
-        </label>
-        {normalize && (
-          <select className="select" value={size} onChange={(e) => setSize(e.target.value as PaperSize)}>
-            <option value="a4">A4</option>
-            <option value="letter">US Letter</option>
-          </select>
-        )}
         <div className="row">
           <button className="btn" onClick={onClose}>
             Cancel
@@ -270,12 +226,18 @@ export function MetadataDialog({ doc, onClose }: { doc: DocState; onClose: () =>
 
   useEffect(() => {
     let alive = true;
-    getTitle(doc.bytes).then((t) => {
-      if (alive) {
-        setTitle(t);
+    getTitle(doc.bytes)
+      .then((t) => {
+        if (alive) {
+          setTitle(t);
+          setLoaded(true);
+        }
+      })
+      .catch((err) => {
+        if (!alive) return;
         setLoaded(true);
-      }
-    });
+        showNotice(`Could not read title: ${err instanceof Error ? err.message : String(err)}`);
+      });
     return () => {
       alive = false;
     };
@@ -344,17 +306,14 @@ export function NormalizeDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Compress dialog: three presets, or a target size via binary search (Phase 9). */
+/** Compress dialog: three compression-level presets via the iLovePDF API. */
 export function CompressDialog({ doc, onClose }: { doc: DocState; onClose: () => void }) {
-  const [mode, setMode] = useState<'preset' | 'target'>('preset');
   const [preset, setPreset] = useState<'low' | 'medium' | 'high'>('medium');
   const currentMb = doc.bytes.length / (1024 * 1024);
-  const [targetMb, setTargetMb] = useState(Math.max(0.1, +(currentMb * 0.5).toFixed(1)));
 
   const run = async () => {
     onClose();
-    if (mode === 'preset') await actions.compress(preset);
-    else await actions.compressToTarget(Math.round(targetMb * 1024 * 1024));
+    await actions.compress(preset);
   };
 
   return (
@@ -362,40 +321,19 @@ export function CompressDialog({ doc, onClose }: { doc: DocState; onClose: () =>
       <div className="dialog cropmarks" onClick={(e) => e.stopPropagation()}>
         <h2>Compress</h2>
         <p className="hint">Current size: {currentMb.toFixed(2)} MB</p>
-        <label>
-          <input type="radio" checked={mode === 'preset'} onChange={() => setMode('preset')} /> Preset
-        </label>
-        {mode === 'preset' && (
-          <select
-            className="select"
-            value={preset}
-            onChange={(e) => setPreset(e.target.value as 'low' | 'medium' | 'high')}
-          >
-            <option value="low">Low — lossless re-save</option>
-            <option value="medium">Medium — images to 1600px</option>
-            <option value="high">High — images to 1000px</option>
-          </select>
-        )}
-        <label>
-          <input type="radio" checked={mode === 'target'} onChange={() => setMode('target')} /> Target
-          size
-        </label>
-        {mode === 'target' && (
-          <>
-            <label>Target — {targetMb.toFixed(1)} MB</label>
-            <input
-              type="number"
-              className="input"
-              min={0.1}
-              step={0.1}
-              value={targetMb}
-              onChange={(e) => setTargetMb(Math.max(0.1, Number(e.target.value)))}
-            />
-            <p className="hint">
-              Searches for the highest quality that fits under this size; tells you if it can’t.
-            </p>
-          </>
-        )}
+        <label>Compression level</label>
+        <select
+          className="select"
+          value={preset}
+          onChange={(e) => setPreset(e.target.value as 'low' | 'medium' | 'high')}
+        >
+          <option value="low">Low — minimal quality loss</option>
+          <option value="medium">Medium — recommended balance</option>
+          <option value="high">High — smallest file, more quality loss</option>
+        </select>
+        <p className="hint" title="Target-size compression requires local processing, which the iLovePDF API workflow does not support.">
+          Compressing to an exact target size isn’t available via the iLovePDF API.
+        </p>
         <div className="row">
           <button className="btn" onClick={onClose}>
             Cancel
@@ -409,20 +347,19 @@ export function CompressDialog({ doc, onClose }: { doc: DocState; onClose: () =>
   );
 }
 
-type BatchOp = 'compress-medium' | 'compress-high' | 'rotate90' | 'normalize-a4' | 'watermark';
+type BatchOp = 'compress-medium' | 'compress-high' | 'rotate90' | 'watermark';
 
 const BATCH_OPS: Array<{ id: BatchOp; label: string }> = [
   { id: 'compress-medium', label: 'Compress (medium)' },
   { id: 'compress-high', label: 'Compress (high)' },
   { id: 'rotate90', label: 'Rotate all pages 90°' },
-  { id: 'normalize-a4', label: 'Normalize to A4' },
   { id: 'watermark', label: 'Watermark "DRAFT"' },
 ];
 
 /**
- * Multi-file batch: pick N PDFs, choose ONE operation, apply to all via a
- * bounded worker pool, show per-file status, and save the results as a zip.
- * Distinct from merge (which combines into one output).
+ * Multi-file batch: pick N PDFs, choose ONE operation, apply to all with
+ * bounded API concurrency, show per-file status, and save the results as a
+ * zip. Distinct from merge (which combines into one output).
  */
 export function BatchDialog({ onClose }: { onClose: () => void }) {
   const [files, setFiles] = useState<Array<{ name: string; bytes: Uint8Array }>>([]);
@@ -432,10 +369,14 @@ export function BatchDialog({ onClose }: { onClose: () => void }) {
   const [doneSummary, setDoneSummary] = useState<string | null>(null);
 
   const pick = async () => {
-    const picked = await window.pdfx.openPdfs();
-    setFiles(picked.map((f) => ({ name: f.fileName, bytes: new Uint8Array(f.bytes) })));
-    setItems([]);
-    setDoneSummary(null);
+    try {
+      const picked = await window.pdfx.openPdfs();
+      setFiles(picked.map((f) => ({ name: f.fileName, bytes: new Uint8Array(f.bytes) })));
+      setItems([]);
+      setDoneSummary(null);
+    } catch (err) {
+      setDoneSummary(`Could not open files: ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   const applyOp = (bytes: Uint8Array): Promise<Uint8Array> => {
@@ -446,8 +387,6 @@ export function BatchDialog({ onClose }: { onClose: () => void }) {
         return ops.compress(bytes, 'high');
       case 'rotate90':
         return ops.rotatePages(bytes, 90);
-      case 'normalize-a4':
-        return ops.normalize(bytes, 'a4');
       case 'watermark':
         return ops.watermark(bytes, { text: 'DRAFT', opacity: 0.15 });
     }
@@ -459,7 +398,7 @@ export function BatchDialog({ onClose }: { onClose: () => void }) {
     setDoneSummary(null);
     setItems(files.map((f, index) => ({ index, input: f, status: 'queued' })));
     const summary = await runBatch(files, (f) => applyOp(f.bytes), {
-      concurrency: 2, // the ops worker serializes; keep the queue bounded and responsive
+      concurrency: 2, // bound concurrent uploads so the API and UI both stay responsive
       onUpdate: (item) => {
         // reflect this item's new status in the UI (copy — never store the live ref)
         setItems((prev) =>
@@ -471,13 +410,7 @@ export function BatchDialog({ onClose }: { onClose: () => void }) {
     });
     setRunning(false);
 
-    const suffix = op.startsWith('compress')
-      ? 'compressed'
-      : op === 'rotate90'
-        ? 'rotated'
-        : op === 'normalize-a4'
-          ? 'a4'
-          : 'draft';
+    const suffix = op.startsWith('compress') ? 'compressed' : op === 'rotate90' ? 'rotated' : 'draft';
     const entries: Record<string, Uint8Array> = {};
     for (const it of summary.items) {
       if (it.status === 'done' && it.result) {

@@ -3,12 +3,18 @@ import { extractPlainText, type OcrPageResult } from '@pdfx/core';
 import { zipSync } from 'fflate';
 import { ops } from '../pdf/opsClient';
 import { getRenderDoc } from '../pdf/render';
-import { getState, openBytes, runExportOp, showNotice } from '../state/store';
+import { getState, openBytes, runExportOp, setBusy, showNotice } from '../state/store';
 import { saveBytesAs } from './files';
 
-/** Images → PDF: native picker, convert in the worker, open the result. */
+/** Images → PDF: native picker, convert via the API, open the result. */
 export async function imagesToPdfFlow(): Promise<void> {
-  const files = await window.pdfx.openImages();
+  let files: Awaited<ReturnType<typeof window.pdfx.openImages>>;
+  try {
+    files = await window.pdfx.openImages();
+  } catch (err) {
+    showNotice(`Could not open images: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
   if (!files.length) return;
   const images = files.map((f) => ({
     bytes: new Uint8Array(f.bytes),
@@ -22,7 +28,16 @@ export async function imagesToPdfFlow(): Promise<void> {
 
 /** Office → PDF via LibreOffice in the main process; opens the converted doc. */
 export async function officeToPdfFlow(): Promise<void> {
-  const result = await window.pdfx.convertOffice();
+  setBusy('Converting to PDF');
+  let result: Awaited<ReturnType<typeof window.pdfx.convertOffice>>;
+  try {
+    result = await window.pdfx.convertOffice();
+  } catch (err) {
+    showNotice(`Conversion failed: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  } finally {
+    setBusy(null);
+  }
   if (!result) return; // cancelled
   if ('error' in result) {
     showNotice(result.error);
@@ -38,8 +53,8 @@ export async function exportImagesFlow(): Promise<void> {
   if (!doc) return;
   const base = doc.fileName.replace(/\.pdf$/i, '');
   const scale = 150 / 72;
-  const renderDoc = await getRenderDoc(doc.id, doc.version, doc.bytes);
   const result = await runExportOp(`Rendering ${doc.pageCount} page(s) to PNG`, async () => {
+    const renderDoc = await getRenderDoc(doc.id, doc.version, doc.bytes);
     const entries: Record<string, Uint8Array> = {};
     for (let i = 0; i < doc.pageCount; i++) {
       const page = await renderDoc.getPage(i + 1);
@@ -97,6 +112,9 @@ export async function ocrFlow(
       return null;
     }
     return result;
+  } catch (err) {
+    showNotice(`OCR failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
   } finally {
     off();
   }

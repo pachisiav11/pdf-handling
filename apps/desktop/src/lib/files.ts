@@ -9,6 +9,7 @@ interface OpenedFile {
 declare global {
   interface Window {
     pdfx: {
+      apiToken?(): Promise<string>;
       openPdfs(): Promise<OpenedFile[]>;
       openImages(): Promise<OpenedFile[]>;
       savePdf(defaultName: string, bytes: ArrayBuffer, extension?: string): Promise<string | null>;
@@ -59,7 +60,13 @@ if (import.meta.env.DEV && typeof window !== 'undefined' && !('pdfx' in window))
 }
 
 export async function openViaDialog(): Promise<void> {
-  const files = await window.pdfx.openPdfs();
+  let files: OpenedFile[];
+  try {
+    files = await window.pdfx.openPdfs();
+  } catch (err) {
+    showNotice(`Could not open file: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
   for (const f of files) {
     await openBytes(f.fileName, new Uint8Array(f.bytes));
     if (!f.filePath.startsWith('DEV://')) {
@@ -69,11 +76,16 @@ export async function openViaDialog(): Promise<void> {
 }
 
 export async function openRecent(path: string): Promise<boolean> {
-  const file = await window.pdfx.recentOpen?.(path);
-  if (!file) return false;
-  await openBytes(file.fileName, new Uint8Array(file.bytes));
-  void window.pdfx.recentAdd?.({ path: file.filePath, name: file.fileName });
-  return true;
+  try {
+    const file = await window.pdfx.recentOpen?.(path);
+    if (!file) return false;
+    await openBytes(file.fileName, new Uint8Array(file.bytes));
+    void window.pdfx.recentAdd?.({ path: file.filePath, name: file.fileName });
+    return true;
+  } catch (err) {
+    showNotice(`Could not open file: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
 }
 
 export async function openDroppedFiles(list: FileList | File[]): Promise<void> {
@@ -93,9 +105,14 @@ export async function saveBytesAs(
   extension: 'pdf' | 'zip' | 'txt' | 'png' | 'jpg' = 'pdf',
 ): Promise<boolean> {
   const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-  const path = await window.pdfx.savePdf(defaultName, buf as ArrayBuffer, extension);
-  if (path) showNotice(`Saved to ${path}`);
-  return path !== null;
+  try {
+    const path = await window.pdfx.savePdf(defaultName, buf as ArrayBuffer, extension);
+    if (path) showNotice(`Saved to ${path}`);
+    return path !== null;
+  } catch (err) {
+    showNotice(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
 }
 
 /** Save the active document and clear its unsaved-changes marker. */

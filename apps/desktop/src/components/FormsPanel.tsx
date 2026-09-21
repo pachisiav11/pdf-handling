@@ -23,7 +23,7 @@ export function FormsPanel({ doc, onClose }: { doc: DocState; onClose: () => voi
         }
         setValues(init);
       })
-      .catch((e) => alive && setError(e.message));
+      .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       alive = false;
     };

@@ -45,3 +45,6 @@ scripts/.tmp/
 # ...but do keep the generated desktop app icons (small, needed to package)
 !apps/desktop/build/
 !apps/desktop/build/**
+
+# pnpm temporary store created by --lockfile-only runs
+.pnpm-store/
