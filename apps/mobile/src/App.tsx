@@ -1,8 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
+  Linking,
   Modal,
   PixelRatio,
   Pressable,
@@ -22,6 +24,8 @@ import {
   clearError,
   closeDoc,
   closeViewer,
+  getState,
+  openFromUri,
   openViaPicker,
   openViewer,
   showError,
@@ -62,8 +66,27 @@ export function App() {
   );
 }
 
+/** PDFs handed over through "Open with" arrive as content:// or file:// links. */
+function openIncoming(url: string | null): void {
+  if (!url || !/^(content|file):/i.test(url)) return;
+  const current = getState().doc;
+  if (!current?.dirty) {
+    void openFromUri(url);
+    return;
+  }
+  Alert.alert('Unsaved changes', `Discard your changes to ${current.name} and open the new file?`, [
+    { text: 'Keep editing', style: 'cancel' },
+    { text: 'Discard', style: 'destructive', onPress: () => void openFromUri(url) },
+  ]);
+}
+
 function Root() {
   const state = useStore();
+  useEffect(() => {
+    Linking.getInitialURL().then(openIncoming, () => {});
+    const sub = Linking.addEventListener('url', ({ url }) => openIncoming(url));
+    return () => sub.remove();
+  }, []);
   return (
     <View style={styles.fill}>
       {state.doc ? <DocScreen state={state} /> : <Home />}

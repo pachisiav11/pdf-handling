@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { existsSync } from 'fs';
 import { readFile, writeFile } from 'fs/promises';
-import { basename, join } from 'path';
+import { basename, join, resolve } from 'path';
 import { createNodeCanvasEncoder, ocrPdf, type OcrPageResult } from '@pdfx/core';
 import { findSoffice, officeToPdf, OFFICE_EXTENSIONS } from '@pdfx/core/convert/officeConvert';
 
@@ -33,6 +34,49 @@ process.on('uncaughtException', (err) => void logLocal('uncaughtException', err.
 process.on('unhandledRejection', (reason) => void logLocal('unhandledRejection', String(reason)));
 ipcMain.on('log:error', (_e, message: string) => void logLocal('renderer', message));
 
+// ---- files handed over by the OS ("Open with", double-click) ---------------
+// One running instance: a second launch forwards its files here and exits.
+const isPrimary = app.requestSingleInstanceLock();
+if (!isPrimary) app.quit();
+
+let mainWindow: BrowserWindow | null = null;
+
+function pdfArgs(argv: string[], cwd = process.cwd()): string[] {
+  return argv
+    .filter((a) => !a.startsWith('-') && /\.pdf$/i.test(a))
+    .map((a) => resolve(cwd, a))
+    .filter((p) => existsSync(p));
+}
+
+let pendingFiles = pdfArgs(process.argv.slice(1));
+
+// The renderer pulls the queue when it starts and whenever it is told more arrived,
+// so files sent before it has loaded are not lost.
+function queueFiles(files: string[]): void {
+  if (!files.length) return;
+  pendingFiles.push(...files);
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open:available');
+}
+
+app.on('second-instance', (_e, argv, workingDirectory) => {
+  queueFiles(pdfArgs(argv.slice(1), workingDirectory));
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
+app.on('open-file', (e, path) => {
+  e.preventDefault();
+  queueFiles([path]);
+});
+
+ipcMain.handle('open:pending', (): string[] => {
+  const files = pendingFiles;
+  pendingFiles = [];
+  return files;
+});
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
@@ -50,6 +94,7 @@ function createWindow(): void {
     },
   });
 
+  mainWindow = win;
   win.once('ready-to-show', () => win.show());
 
   if (process.env['ELECTRON_RENDERER_URL']) {
@@ -215,6 +260,7 @@ ipcMain.handle('dialog:openImages', async (): Promise<OpenedFile[]> => {
 });
 
 app.whenReady().then(() => {
+  if (!isPrimary) return;
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

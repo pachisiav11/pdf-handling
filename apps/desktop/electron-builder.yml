@@ -37,7 +37,17 @@ win:
       arch: [x64]
   icon: build/icon.ico
 
+# Registers PDFX as a handler for .pdf ("Open with" / Settings > Default apps).
+# Windows keeps the user's chosen default; switching is done in the system UI.
+fileAssociations:
+  - ext: pdf
+    name: PDFX.Document
+    description: PDF document
+    mimeType: application/pdf
+    role: Editor
+
 nsis:
+  include: build/installer.nsh
   oneClick: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false

@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import RNBlobUtil from 'react-native-blob-util';
 import { pick, keepLocalCopy, types, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { base64ToBytes, bytesToBase64 } from './bytes';
+import PdfxNative from '../specs/NativePdfxNative';
 
 export interface PickedPdf {
   name: string;
@@ -33,6 +34,22 @@ export async function pickPdf(): Promise<PickedPdf | null> {
     if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return null;
     throw err;
   }
+}
+
+/** Read a PDF another app handed over ("Open with"): content:// or file:// uri. */
+export async function readPdfFromUri(uri: string): Promise<PickedPdf> {
+  const name = await PdfxNative.displayName(uri);
+  const [copy] = await keepLocalCopy({
+    files: [{ uri, fileName: name }],
+    destination: 'cachesDirectory',
+  });
+  if (copy.status !== 'success') {
+    throw new Error(copy.copyError || 'Could not read the file.');
+  }
+  const path = stripScheme(copy.localUri);
+  const base64 = await RNBlobUtil.fs.readFile(path, 'base64');
+  await RNBlobUtil.fs.unlink(path).catch(() => {});
+  return { name, bytes: base64ToBytes(base64) };
 }
 
 /**

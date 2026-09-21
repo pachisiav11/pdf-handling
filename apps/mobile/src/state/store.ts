@@ -20,7 +20,7 @@ import {
   type NumberPosition,
   type PaperSize,
 } from '@pdfx/core/mobile';
-import { pickPdf, pickPdfs, savePdfToDownloads } from '../lib/files';
+import { pickPdf, pickPdfs, readPdfFromUri, savePdfToDownloads } from '../lib/files';
 import { nativeReencoder } from '../lib/imageCodec';
 
 export interface Doc {
@@ -124,6 +124,22 @@ export async function openViaPicker(): Promise<void> {
     }
     const doc = await makeDoc(picked.name, picked.bytes);
     emit({ busy: null, doc, selection: [], error: null });
+  } catch (err) {
+    setError(err);
+  }
+}
+
+/** Open a PDF handed over by another app, straight into the reader. */
+export async function openFromUri(uri: string): Promise<void> {
+  if (state.busy) {
+    showNotice('Finish the current task, then open the file again.');
+    return;
+  }
+  emit({ busy: 'Opening' });
+  try {
+    const picked = await readPdfFromUri(uri);
+    const doc = await makeDoc(picked.name, picked.bytes);
+    emit({ busy: null, doc, selection: [], viewerPage: 0, error: null });
   } catch (err) {
     setError(err);
   }

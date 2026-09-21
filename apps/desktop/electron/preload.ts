@@ -22,6 +22,8 @@ export interface PdfxBridge {
   recentAdd(entry: { path: string; name: string }): Promise<void>;
   recentOpen(path: string): Promise<OpenedFile | null>;
   onOcrProgress(cb: (p: OcrProgress) => void): () => void;
+  takePendingFiles(): Promise<string[]>;
+  onFilesAvailable(cb: () => void): () => void;
 }
 
 const bridge: PdfxBridge = {
@@ -39,6 +41,12 @@ const bridge: PdfxBridge = {
     const handler = (_e: unknown, p: OcrProgress) => cb(p);
     ipcRenderer.on('ocr:progress', handler);
     return () => ipcRenderer.removeListener('ocr:progress', handler);
+  },
+  takePendingFiles: () => ipcRenderer.invoke('open:pending'),
+  onFilesAvailable: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('open:available', handler);
+    return () => ipcRenderer.removeListener('open:available', handler);
   },
 };
 

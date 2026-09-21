@@ -19,6 +19,8 @@ declare global {
       recentAdd?(entry: { path: string; name: string }): Promise<void>;
       recentOpen?(path: string): Promise<OpenedFile | null>;
       onOcrProgress(cb: (p: { done: number; total: number }) => void): () => void;
+      takePendingFiles?(): Promise<string[]>;
+      onFilesAvailable?(cb: () => void): () => void;
     };
   }
 }
@@ -84,6 +86,14 @@ export async function openRecent(path: string): Promise<boolean> {
   } catch (err) {
     showNotice(`Could not open file: ${err instanceof Error ? err.message : String(err)}`);
     return false;
+  }
+}
+
+/** Open the PDFs Windows handed to the app ("Open with", double-click). */
+export async function openPendingFiles(): Promise<void> {
+  const paths = (await window.pdfx.takePendingFiles?.()) ?? [];
+  for (const path of paths) {
+    if (!(await openRecent(path))) showNotice(`Could not open ${path}`);
   }
 }
 

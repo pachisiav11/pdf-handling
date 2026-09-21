@@ -18,7 +18,7 @@ import {
   toggleRedactMode,
   useAppState,
 } from './state/store';
-import { openDroppedFiles, openViaDialog, saveActiveDoc } from './lib/files';
+import { openDroppedFiles, openPendingFiles, openViaDialog, saveActiveDoc } from './lib/files';
 import { Home } from './components/Home';
 import { Workspace } from './components/Workspace';
 import { CommandPalette } from './components/CommandPalette';
@@ -26,6 +26,11 @@ import { CommandPalette } from './components/CommandPalette';
 export function App() {
   const state = useAppState();
   const doc = state.docs.find((d) => d.id === state.activeId) ?? null;
+
+  useEffect(() => {
+    void openPendingFiles();
+    return window.pdfx.onFilesAvailable?.(() => void openPendingFiles());
+  }, []);
 
   // Keyboard shortcuts (collision-audited table in the build guide).
   useEffect(() => {
