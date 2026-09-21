@@ -330,16 +330,16 @@ function PageNumbersModal({ onClose }: { onClose: () => void }) {
 
 function CompressModal({ currentBytes, onClose }: { currentBytes: number; onClose: () => void }) {
   const presets: Array<[CompressPreset, string]> = [
-    ['low', 'Low — lossless re-save'],
-    ['medium', 'Medium — lossless on mobile'],
-    ['high', 'High — lossless on mobile'],
+    ['low', 'Low — lossless, images untouched'],
+    ['medium', 'Medium — images up to 1600px, good quality'],
+    ['high', 'High — images up to 1000px, smallest file'],
   ];
   const currentMb = currentBytes / (1024 * 1024);
   const [targetMb, setTargetMb] = useState((currentMb * 0.7).toFixed(1));
   return (
     <ModalShell title="Compress" onClose={onClose}>
       <Text style={styles.modalHint}>
-        Image downscaling is desktop-only; mobile does a lossless re-save.
+        Photos are re-encoded as JPEG. Text, vector art and flat graphics stay sharp.
       </Text>
       {presets.map(([preset, label]) => (
         <Pressable

@@ -30,5 +30,13 @@
     "@react-native/typescript-config": "0.86.0",
     "@types/react": "^19.2.0",
     "typescript": "^5.8.3"
+  },
+  "codegenConfig": {
+    "name": "PdfxSpecs",
+    "type": "modules",
+    "jsSrcsDir": "src/specs",
+    "android": {
+      "javaPackageName": "com.pdfxmobile.specs"
+    }
   }
 }

@@ -20,6 +20,8 @@ import {
   addWatermark,
   compressPdf,
   compressToTargetSize,
+  decodeFlateImage,
+  scaledSize,
   cropPages,
   deletePages,
   extractPages,
@@ -79,16 +81,20 @@ export type OpResponse =
   | { id: number; ok: true; data: FieldInfo[] | TargetSizeResult }
   | { id: number; ok: false; message: string };
 
-/** JPEG re-encoder backed by OffscreenCanvas (available in workers). */
-const reencoder: ImageReencoder = async (jpegBytes, { maxDimension, quality }) => {
+/** Image re-encoder backed by OffscreenCanvas (available in workers). */
+const reencoder: ImageReencoder = async (source, { maxDimension, quality }) => {
   try {
-    const bitmap = await createImageBitmap(new Blob([jpegBytes.slice()], { type: 'image/jpeg' }));
-    const ratio = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
-    const w = Math.max(1, Math.round(bitmap.width * ratio));
-    const h = Math.max(1, Math.round(bitmap.height * ratio));
-    const canvas = new OffscreenCanvas(w, h);
+    const bitmap =
+      source.kind === 'jpeg'
+        ? await createImageBitmap(new Blob([source.bytes.slice()], { type: 'image/jpeg' }))
+        : await (() => {
+            const px = decodeFlateImage(source);
+            return createImageBitmap(new ImageData(px.rgba, px.width, px.height));
+          })();
+    const size = scaledSize(bitmap.width, bitmap.height, maxDimension);
+    const canvas = new OffscreenCanvas(size.width, size.height);
     const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(bitmap, 0, 0, w, h);
+    ctx.drawImage(bitmap, 0, 0, size.width, size.height);
     bitmap.close();
     const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
     return new Uint8Array(await blob.arrayBuffer());

@@ -22,6 +22,7 @@ export {
   compressToTargetSize,
   type CompressPreset,
   type TargetSizeResult,
+  type ImageReencoder,
 } from './compress';
 export { addWatermark, type WatermarkOptions } from './editing/watermark';
 export { addPageNumbers, type PageNumberOptions, type NumberPosition } from './editing/pageNumbers';

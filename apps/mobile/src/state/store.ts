@@ -21,6 +21,7 @@ import {
   type PaperSize,
 } from '@pdfx/core/mobile';
 import { pickPdf, pickPdfs, savePdfToDownloads } from '../lib/files';
+import { nativeReencoder } from '../lib/imageCodec';
 
 export interface Doc {
   name: string;
@@ -179,7 +180,7 @@ export const actions = {
   },
 
   compress(preset: CompressPreset) {
-    return mutate(`Compressing (${preset})`, (b) => compressPdf(b, preset));
+    return mutate(`Compressing (${preset})`, (b) => compressPdf(b, preset, nativeReencoder));
   },
 
   /**
@@ -192,7 +193,7 @@ export const actions = {
     if (!doc || state.busy) return;
     emit({ busy: 'Compressing to size' });
     try {
-      const res = await compressToTargetSize(doc.bytes, targetBytes);
+      const res = await compressToTargetSize(doc.bytes, targetBytes, nativeReencoder);
       if (!res.ok) {
         emit({ busy: null });
         showNotice(res.message);
@@ -282,7 +283,7 @@ export const actions = {
       const apply = (b: Uint8Array): Promise<Uint8Array> => {
         switch (op) {
           case 'compress-medium':
-            return compressPdf(b, 'medium');
+            return compressPdf(b, 'medium', nativeReencoder);
           case 'rotate90':
             return rotatePages(b, 90);
           case 'normalize-a4':
