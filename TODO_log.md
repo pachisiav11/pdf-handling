@@ -15,3 +15,15 @@
 - Added: 2026-09-07 12:20 | Completed: 2026-09-21 12:59 | Dropped (switched back to local): APK with API flow
 - Added: 2026-09-07 12:20 | Completed: 2026-09-21 12:59 | Dropped (switched back to local): setTitle routing through rotate/metas
 - Added: 2026-09-07 12:20 | Completed: 2026-09-21 12:59 | Superseded by reinstating local features: dead action exports in desktop store
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 13:39 | Commit current tree (iLovePDF migration + bug-fix pass) as a baseline
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 13:39 | Desktop back to local — restore worker, reconnect opsClient, re-enable disabled controls, drop API wiring
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 13:39 | Mobile back to local — store calls @pdfx/core/mobile again, re-enable disabled tools
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 13:39 | Compression — re-encode JPEG and Flate (PNG-type) images on both platforms
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 13:39 | Android native image encoder module for compression
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 13:39 | Android pdf.js WebView viewer and rendered grid thumbnails
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 13:39 | Windows .pdf file association and open-file handling (argv + second instance)
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 13:39 | Android ACTION_VIEW application/pdf intent handler
+- Added: 2026-09-07 12:20 | Completed: 2026-09-21 13:39 | Run `pnpm install` from a network-enabled shell to replace the manual workspace junctions with real pnpm links
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 14:00 | Docs — README, PROGRESS, note in packages/ilovepdf-api
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 14:00 | Build and install the Windows installer on this PC; build the APK
+- Added: 2026-09-21 12:59 | Completed: 2026-09-21 14:00 | Commit each part and push to origin/main

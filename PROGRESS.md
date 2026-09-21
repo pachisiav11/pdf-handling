@@ -280,3 +280,48 @@ Offline verification: no longer applicable — the app requires network for ever
 
 Not verified: no live API call has been made. The signed-JWT path, the hand-rolled multipart upload
 against the real endpoint, the Electron installer, and the Android APK all remain untested.
+
+## v1.2 — Back to local, better compression, PDFX as a PDF handler (2026-09-21)
+
+Local processing restored. Both apps run every operation on the device again. The desktop PDF
+worker, the reorder/selection/editing/forms/redaction tools, target-size compression and the
+mobile toolset are back; the API wiring (main-process JWT signing, preload token, aliases, package
+dependencies) is gone. Bug fixes from the API period were kept. `packages/ilovepdf-api` stays in
+the repo, unused, with a README note.
+
+Additional fixes found while restoring: a crashed PDF worker now fails pending calls instead of
+hanging the UI; switching tabs no longer shows the previous document's thumbnails; thumbnails and
+the viewer never render from a document that a newer version has already destroyed.
+
+Compression. The core now re-encodes photographic Flate (PNG-type) images as well as JPEGs, on
+every platform, through one `ImageReencoder` interface (`jpeg` or `flate` source). Flat graphics
+(Flate data already under 10% of raw size), masks, CMYK Flate, /Decode arrays, non-8-bit and
+TIFF-predictor images stay lossless. Re-encoded images always get a fresh DeviceRGB/DCTDecode
+dictionary, which fixes gray and CMYK JPEGs that previously kept their old colour-space label.
+Every preset also deflates uncompressed streams. Measured on desktop: a 4.16 MB PDF with a PNG
+photo became 378 KB on Medium.
+
+Android compression. A new `PdfxNative` TurboModule (codegen spec in `apps/mobile/src/specs`)
+does the image work natively: BitmapFactory with inSampleSize for JPEG, and a streaming Flate
+decoder that inflates, un-filters and box-averages one row at a time, so only the downscaled
+bitmap is ever in memory. Failures return "leave this image as it is".
+
+Android reader and thumbnails. `apps/mobile/viewer` is a pdf.js page bundled by esbuild into the
+APK assets (Gradle `buildPdfViewer` task). A full-screen reader (scroll, pinch zoom with sharp
+re-render) and a hidden renderer for grid thumbnails both use it. Thumbnails are requested only
+for visible cells. pdf.js runs in a Blob worker and falls back to running in-page.
+
+Default-app support. Windows: the installer registers `PDFX.Document` for .pdf and adds it to
+OpenWithProgids; a single instance receives files from double-click, "Open with" and later
+launches, and opens each in a tab. Android: an ACTION_VIEW filter for application/pdf; files open
+straight into the reader, with a confirm before unsaved edits are replaced. The user's default is
+never changed by the app.
+
+Verification: typecheck and lint clean; 64 core tests pass (10 new compression tests); the viewer
+bundle was exercised in a browser in both worker and in-page modes; the release APK builds and
+contains the viewer assets and the PDF intent filter; the 1.2.0 installer was installed on the
+development PC, registered the handler without touching the existing default (ChromePDF), and
+opened a PDF from the command line and a second one through the running instance.
+
+Not verified here: the APK has not been run on a device (reader, thumbnails, native compression,
+"Open with" on Android are untested on hardware).

@@ -1,18 +1,13 @@
-# PDFX — PDF editor for desktop and Android
+# PDFX — offline PDF editor for desktop and Android
 
 [![CI](https://github.com/pachisiav11/pdf-handling/actions/workflows/ci.yml/badge.svg)](https://github.com/pachisiav11/pdf-handling/actions/workflows/ci.yml)
 
-A fast, keyboard-driven PDF editor for Windows and Android, built from one shared TypeScript core.
+Fast, private, fully-offline PDF editing for Windows and Android, built from one shared TypeScript
+core. **No uploads, no accounts, no telemetry.** Every operation runs on your device.
 
-> **Your documents are uploaded for processing.** As of the current version, every document
-> mutation (merge, split, rotate, compress, watermark, page numbers, image→PDF) is performed by
-> the [iLovePDF REST API](https://www.iloveapi.com/). Files are uploaded over HTTPS to iLovePDF's
-> servers, processed there, and downloaded back. They are **not** processed on your machine, and
-> using the app consumes iLovePDF API credits. Earlier versions of PDFX processed everything
-> locally; that is no longer true, and the claims below have been corrected accordingly.
-
-Page rendering, thumbnails, page counts, and view state are still computed locally. Office→PDF
-conversion and OCR on the desktop app still run locally via bundled LibreOffice and Tesseract.
+> **History.** For a period in 2026 PDFX sent documents to the iLovePDF REST API for processing.
+> v1.2 returns to fully local processing. The API client is kept, unused, in
+> `packages/ilovepdf-api` (see its README); nothing in either app imports it.
 
 **Download:** grab the Windows installer and the Android APK from the [latest release](https://github.com/pachisiav11/pdf-handling/releases/latest).
 
@@ -30,63 +25,60 @@ Android — the same identity, running the shared core in Hermes:
 
 | | PDFX |
 |---|---|
-| Document processing | iLovePDF REST API, over HTTPS |
-| Local-only work | Page rendering, thumbnails, page counts, desktop Office→PDF, desktop OCR |
-| Accounts | None in the app; an iLovePDF project key is required to build/run it |
-| API credits | Consumed per operation, against the configured iLovePDF project |
+| Document processing | On your device only |
+| Works offline | Yes — every tool |
+| Accounts | None |
 | Telemetry | None — errors are written to a local log file only |
 
 ## Features
 
-### Working (processed by the iLovePDF API)
+**Core** — merge, split (by range or into individual pages), delete/extract/reorder pages, rotate,
+compress (3 presets and target size), view with zoom.
+**Editing** — text overlay, highlight/underline/strikethrough, freehand draw, image stamps, page
+numbers, watermark, crop, and **true redaction** (the page is rasterized and the original content
+stream is discarded).
+**Forms & signatures** — detect and fill AcroForm fields, create text-field/checkbox fields, and
+sign or initial by drawing, typing, or uploading an image.
+**Conversion** — images ↔ PDF, PDF → images, PDF → text, OCR of scanned PDFs (Tesseract, English
+bundled), and Office → PDF (desktop only, via bundled LibreOffice).
+**Productivity** — command palette (Ctrl+K), batch processing, page-size normalize, title editor,
+searchable OCR, and session undo/redo.
 
-Merge, split by range, split into individual pages, delete pages, extract pages, rotate all pages,
-compress (3 presets), page numbers, text watermark, images → PDF, and set the document title.
+**Android** — merge, split, delete, extract, reorder, rotate, compress (presets and target size),
+watermark, page numbers, normalize, title, batch (multi-file → Downloads), a long-press per-page
+action sheet, undo/redo, and save to Downloads. v1.2 adds a **pdf.js reader** (scroll, pinch zoom)
+and **rendered page thumbnails** in the grid. Editing, forms, OCR and conversion are desktop-only.
 
-### Working locally
+### Compression
 
-Page rendering, thumbnails and zoom; PDF → images; PDF → text; OCR of scanned PDFs (Tesseract,
-English bundled, desktop only); Office → PDF (Word/Excel/PowerPoint, desktop only, via bundled
-LibreOffice); session undo/redo; the command palette (Ctrl+K); and batch processing, which now
-dispatches each file's operation to the API.
+Compression works the same way on both platforms:
 
-### Not currently available
+| Preset | Images | Everything else |
+|---|---|---|
+| Low | untouched | lossless re-save; uncompressed streams are deflated |
+| Medium | photos re-encoded as JPEG, longest side ≤ 1600 px, quality 0.8 | same as Low |
+| High | photos re-encoded as JPEG, longest side ≤ 1000 px, quality 0.6 | same as Low |
 
-These shipped in v1.0/v1.1 as local operations and are **disabled** in the current build, because
-the iLovePDF API offers no equivalent: page reordering, rotating only selected pages, target-size
-compression, page-size normalization, searchable OCR text layers, text overlay, highlight /
-underline / strikethrough, freehand drawing, image stamps and signatures, image watermarks,
-cropping, redaction, and AcroForm field detection / filling / creation.
+Both JPEG and PNG-type (Flate) images are re-encoded. Text and vector art are never rasterized.
+Flat graphics (logos, diagrams, screenshots that already compress well), masks, CMYK and other
+unusual image layouts stay lossless, and a re-encoded image is only kept when it is smaller. On
+Android a small native module (`PdfxNative`) decodes, scales and encodes the images; on desktop
+the PDF worker uses the browser's image codecs.
 
-**Android** — merge, split, delete, extract, rotate all pages, compress preset, text watermark,
-page numbers, title, batch (multi-file → Downloads), a long-press per-page action sheet, undo/redo,
-and save to Downloads. Rendered page previews, editing, forms, OCR and conversion are desktop-only.
+### Open PDFs with PDFX
+
+PDFX registers itself as a PDF handler but never takes over as the default. You choose:
+
+- **Windows** — right-click a PDF → **Open with** → **PDFX**. To make it the default, pick
+  "Always use this app", or go to **Settings → Apps → Default apps**, search `.pdf`, and pick
+  PDFX. To switch back, choose your previous app in the same place. Opening more PDFs while PDFX
+  is running adds them as tabs in the open window.
+- **Android** — open a PDF from Files, a browser download, or an email attachment and pick
+  **PDFX** in the chooser ("Just once" or "Always"). To switch back, open **Settings → Apps →
+  PDFX → Open by default → Clear defaults** (the wording varies by phone), then pick another
+  app next time. Files opened this way go straight to the reader; tap **‹ Pages** for the tools.
 
 See [PROGRESS.md](PROGRESS.md) for what was implemented per phase.
-
-## iLovePDF API configuration
-
-The app cannot process anything without an iLovePDF project key pair. The **public** project ID is
-committed in the source on purpose; the **private** key must never be committed, bundled, or sent to
-a client.
-
-Development (repository root `.env`, gitignored):
-
-```env
-ILOVEPDF_PRIVATE_KEY=your-private-key
-ILOVEPDF_REGION=in
-```
-
-Installed desktop app — create `%APPDATA%\PDFX\iloveapi.json`:
-
-```json
-{ "privateKey": "your-private-key" }
-```
-
-The Electron main process signs a short-lived HS256 JWT with the private key and exposes only that
-token to the renderer over IPC. The Android app never holds the private key; it uses iLovePDF's
-public `/v1/auth` flow. Apply IP/domain restrictions in the iLovePDF dashboard where your plan
-supports them.
 
 ## Repository layout
 
@@ -105,7 +97,7 @@ Requires **Node ≥ 20** and **pnpm 9** (`npm i -g pnpm@9`). pnpm 11 has a linki
 ```sh
 pnpm install
 
-# core unit tests (43 tests, includes redaction & OCR acceptance checks)
+# core unit tests (64 tests, includes redaction, OCR and compression checks)
 pnpm --filter @pdfx/core test
 
 # desktop app in dev
@@ -122,7 +114,7 @@ cd apps/desktop && npx electron-builder --win   # → apps/desktop/release/PDFX-
 
 ### Android app (APK)
 
-Requires the **Android SDK** (platform 36, build-tools 36.0.0), **NDK 27.1.12297006**, **CMake 3.22.1**, and **JDK 21**. RN 0.86 is new-architecture-only, so the NDK/CMake are required even though the app ships no C++ of its own.
+Requires the **Android SDK** (platform 36, build-tools 36.0.0), **NDK 27.1.12297006**, **CMake 3.22.1**, and **JDK 21**. RN 0.86 is new-architecture-only, so the NDK/CMake are required. The Gradle build also runs `node scripts/build-viewer.mjs` to bundle the pdf.js reader into the APK assets, so `node` must be on the PATH.
 
 ```sh
 # from a fresh checkout, install workspace deps first
@@ -132,7 +124,7 @@ pnpm install
 pnpm --filter @pdfx/mobile start          # terminal 1 — Metro
 pnpm --filter @pdfx/mobile android        # terminal 2 — build + install
 
-# self-contained release APK (bundled JS, no Metro; PDF operations still need network):
+# self-contained release APK (bundled JS, no Metro):
 cd apps/mobile/android && ./gradlew assembleRelease
 # → apps/mobile/android/app/build/outputs/apk/release/app-release.apk
 ```

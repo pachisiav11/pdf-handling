@@ -2,6 +2,11 @@
 
 Last updated: 2026-07-17
 
+> **Historical (2026-09-21).** The iLovePDF migration was reverted in v1.2: both apps process every
+> document locally again, and `packages/ilovepdf-api` is kept but unused. Nothing below describes
+> the current app. The private-key warning still applies to the ignored `.env` file — revoke the
+> key in the iLovePDF dashboard if it is no longer needed.
+
 > **Superseded in part (2026-09-07).** A bug-fix pass has since landed: the renderer CSP, the
 > missing workspace alias/link, the lockfile, the module-scope crash, and the API protocol errors
 > are fixed; unsupported operations are disabled in both UIs; the client has 24 mocked-fetch tests;
