@@ -35,6 +35,7 @@ export interface Doc {
 export interface State {
   doc: Doc | null;
   selection: number[]; // 0-based page indices
+  viewerPage: number | null; // reader open at this page
   busy: string | null;
   error: string | null;
   notice: string | null;
@@ -42,7 +43,7 @@ export interface State {
 
 const MAX_HISTORY = 20;
 
-let state: State = { doc: null, selection: [], busy: null, error: null, notice: null };
+let state: State = { doc: null, selection: [], viewerPage: null, busy: null, error: null, notice: null };
 const listeners = new Set<() => void>();
 
 function emit(next: Partial<State>): void {
@@ -74,6 +75,10 @@ function setError(err: unknown): void {
   emit({ busy: null, error: errorMessage(err) });
 }
 
+export function showError(message: string): void {
+  emit({ error: message });
+}
+
 export function clearError(): void {
   emit({ error: null });
 }
@@ -94,6 +99,14 @@ export function toggleSelect(index: number): void {
 
 export function clearSelection(): void {
   emit({ selection: [] });
+}
+
+export function openViewer(page: number): void {
+  emit({ viewerPage: page });
+}
+
+export function closeViewer(): void {
+  emit({ viewerPage: null });
 }
 
 async function makeDoc(name: string, bytes: Uint8Array): Promise<Doc> {
@@ -117,7 +130,7 @@ export async function openViaPicker(): Promise<void> {
 }
 
 export function closeDoc(): void {
-  emit({ doc: null, selection: [], notice: null });
+  emit({ doc: null, selection: [], viewerPage: null, notice: null });
 }
 
 /**

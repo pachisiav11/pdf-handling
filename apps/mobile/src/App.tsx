@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
+  Image,
   Modal,
+  PixelRatio,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -10,18 +13,25 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
+  type ViewToken,
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   actions,
   clearError,
   closeDoc,
+  closeViewer,
   openViaPicker,
+  openViewer,
+  showError,
   toggleSelect,
   useStore,
   type State,
 } from './state/store';
 import type { CompressPreset, NumberPosition, PaperSize } from '@pdfx/core/mobile';
+import { useThumbnails } from './viewer/useThumbnails';
+import { ViewerScreen } from './viewer/ViewerScreen';
 
 const C = {
   desk: '#1c1f24',
@@ -35,6 +45,11 @@ const C = {
   magenta: '#e0457b', // destructive
   yellow: '#e6b422', // unsaved
 };
+
+const TILE_W = 78;
+const GRID_PAD = 10;
+const GRID_GAP = 10;
+const VIEWABILITY = { itemVisiblePercentThreshold: 1, minimumViewTime: 100 };
 
 export function App() {
   return (
@@ -98,6 +113,12 @@ function DocScreen({ state }: { state: State }) {
     null | 'split' | 'watermark' | 'pagenumbers' | 'compress' | 'normalize' | 'title' | 'batch'
   >(null);
   const [pageSheet, setPageSheet] = useState<number | null>(null);
+  const { width } = useWindowDimensions();
+  const columns = Math.max(3, Math.floor((width - GRID_PAD * 2 + GRID_GAP) / (TILE_W + GRID_GAP)));
+  const thumbs = useThumbnails(doc.bytes, Math.min(300, Math.round(TILE_W * PixelRatio.get())));
+  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken<number>[] }) =>
+    thumbs.setVisible(viewableItems.map((v) => v.item)),
+  ).current;
 
   return (
     <View style={styles.fill}>
@@ -118,25 +139,40 @@ function DocScreen({ state }: { state: State }) {
       </View>
 
       {/* Page grid */}
-      <ScrollView contentContainerStyle={styles.grid}>
-        {Array.from({ length: doc.pageCount }, (_, i) => {
+      <FlatList
+        key={columns}
+        data={Array.from({ length: doc.pageCount }, (_, i) => i)}
+        keyExtractor={(i) => String(i)}
+        numColumns={columns}
+        contentContainerStyle={styles.grid}
+        columnWrapperStyle={styles.gridRow}
+        onViewableItemsChanged={onViewable}
+        viewabilityConfig={VIEWABILITY}
+        renderItem={({ item: i }) => {
           const selected = sel.includes(i);
+          const thumb = thumbs.get(i);
           return (
             <Pressable
-              key={i}
-              style={styles.tileWrap}
               onPress={() => toggleSelect(i)}
               onLongPress={() => setPageSheet(i)}
               delayLongPress={300}
             >
               <View style={[styles.tile, selected && styles.tileSelected]}>
+                {thumb ? (
+                  <>
+                    <Image source={{ uri: thumb }} style={styles.tileImage} resizeMode="contain" />
+                    <Text style={styles.tileBadge}>{i + 1}</Text>
+                  </>
+                ) : (
+                  <Text style={styles.tileNum}>{i + 1}</Text>
+                )}
                 {selected && <RegistrationMarks />}
-                <Text style={styles.tileNum}>{i + 1}</Text>
               </View>
             </Pressable>
           );
-        })}
-      </ScrollView>
+        }}
+      />
+      {thumbs.renderer}
 
       {/* Selection status */}
       <View style={styles.statusRow}>
@@ -154,6 +190,7 @@ function DocScreen({ state }: { state: State }) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.toolbar}
       >
+        <Tool label="View" onPress={() => openViewer(sel[0] ?? 0)} />
         <Tool label="Rotate" onPress={() => void actions.rotate(90)} />
         <Tool
           label="Delete"
@@ -190,6 +227,15 @@ function DocScreen({ state }: { state: State }) {
       {modal === 'batch' && <BatchModal onClose={() => setModal(null)} />}
       {pageSheet !== null && (
         <PageActionSheet index={pageSheet} onClose={() => setPageSheet(null)} />
+      )}
+      {state.viewerPage !== null && (
+        <ViewerScreen
+          name={doc.name}
+          bytes={doc.bytes}
+          startPage={state.viewerPage}
+          onClose={closeViewer}
+          onError={showError}
+        />
       )}
     </View>
   );
@@ -477,6 +523,7 @@ function BatchModal({ onClose }: { onClose: () => void }) {
 /** Long-press action sheet for a single page (mobile command-palette equivalent). */
 function PageActionSheet({ index, onClose }: { index: number; onClose: () => void }) {
   const rows: Array<[string, () => void, boolean?]> = [
+    ['View this page', () => openViewer(index)],
     ['Rotate this page 90°', () => void actions.rotatePage(index)],
     ['Extract this page → Downloads', () => void actions.extractPageToDownloads(index)],
     ['Delete this page', () => void actions.deletePage(index), true],
@@ -557,11 +604,12 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: C.cyan, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 6 },
   saveBtnText: { color: '#04222a', fontWeight: '700' },
 
-  grid: { flexDirection: 'row', flexWrap: 'wrap', padding: 10, gap: 10 },
-  tileWrap: {},
+  grid: { padding: GRID_PAD, gap: GRID_GAP },
+  gridRow: { gap: GRID_GAP },
   tile: {
-    width: 78,
+    width: TILE_W,
     height: 104,
+    overflow: 'hidden',
     backgroundColor: C.paper,
     borderRadius: 3,
     alignItems: 'center',
@@ -571,6 +619,19 @@ const styles = StyleSheet.create({
   },
   tileSelected: { borderColor: C.cyan },
   tileNum: { color: '#2a2a2a', fontSize: 18, fontWeight: '700' },
+  tileImage: { width: '100%', height: '100%' },
+  tileBadge: {
+    position: 'absolute',
+    right: 3,
+    bottom: 3,
+    paddingHorizontal: 5,
+    borderRadius: 3,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(28,31,36,0.8)',
+    color: C.ink,
+    fontSize: 11,
+    fontWeight: '700',
+  },
   mark: { position: 'absolute', width: 10, height: 10, borderColor: C.magenta },
   markTL: { top: -1, left: -1, borderTopWidth: 2, borderLeftWidth: 2 },
   markTR: { top: -1, right: -1, borderTopWidth: 2, borderRightWidth: 2 },

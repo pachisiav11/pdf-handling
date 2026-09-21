@@ -111,7 +111,22 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+    sourceSets {
+        main.assets.srcDirs += layout.buildDirectory.dir("generated/pdfx-viewer")
+    }
 }
+
+// Bundles the pdf.js viewer page (apps/mobile/viewer) into assets/viewer.
+def buildPdfViewer = tasks.register("buildPdfViewer", Exec) {
+    def mobileDir = rootProject.file("..")
+    def outDir = layout.buildDirectory.dir("generated/pdfx-viewer/viewer").get().asFile
+    workingDir mobileDir
+    commandLine "node", "scripts/build-viewer.mjs", outDir.absolutePath
+    inputs.dir(new File(mobileDir, "viewer"))
+    inputs.file(new File(mobileDir, "scripts/build-viewer.mjs"))
+    outputs.dir(outDir)
+}
+preBuild.dependsOn(buildPdfViewer)
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin

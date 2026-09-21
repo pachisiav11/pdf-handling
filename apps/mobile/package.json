@@ -6,7 +6,7 @@
     "android": "react-native run-android",
     "start": "react-native start",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p viewer"
   },
   "dependencies": {
     "@pdfx/core": "workspace:*",
@@ -15,7 +15,8 @@
     "react": "19.2.3",
     "react-native": "0.86.0",
     "react-native-blob-util": "^0.22.2",
-    "react-native-safe-area-context": "^5.5.2"
+    "react-native-safe-area-context": "^5.5.2",
+    "react-native-webview": "^14.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -29,6 +30,8 @@
     "@react-native/metro-config": "0.86.0",
     "@react-native/typescript-config": "0.86.0",
     "@types/react": "^19.2.0",
+    "esbuild": "^0.21.5",
+    "pdfjs-dist": "4.10.38",
     "typescript": "^5.8.3"
   },
   "codegenConfig": {
