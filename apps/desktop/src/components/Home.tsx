@@ -12,7 +12,7 @@ interface ToolDef {
 /* Every tool opens with file selection first — one click to the tool,
    the file dialog is the second. (≤2 clicks requirement.) */
 const TOOLS: ToolDef[] = [
-  { name: 'Organize pages', desc: 'Rotate the whole document, delete pages' },
+  { name: 'Organize pages', desc: 'Reorder, rotate, delete' },
   { name: 'Merge', desc: 'Combine PDFs into one' },
   { name: 'Split', desc: 'Extract a page range' },
   { name: 'Compress', desc: 'Shrink file size' },
@@ -55,7 +55,7 @@ export function Home() {
           <span className="dot-m">.</span>
           <span className="dot-y">.</span>
         </h1>
-        <p>Processed via the iLovePDF API — your document is uploaded to run each operation.</p>
+        <p>Every tool runs on this machine. Nothing is uploaded, ever.</p>
       </div>
 
       <button

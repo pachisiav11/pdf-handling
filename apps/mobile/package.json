@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@pdfx/core": "workspace:*",
-    "@pdfx/ilovepdf-api": "workspace:*",
     "@react-native-documents/picker": "^10.1.1",
     "hermes-compiler": "250829098.0.14",
     "react": "19.2.3",

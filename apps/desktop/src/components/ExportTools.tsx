@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import type { OcrPageResult } from '@pdfx/core';
 import { exportImagesFlow, exportTextFlow, ocrFlow } from '../lib/convert';
 import { saveBytesAs } from '../lib/files';
-import type { DocState } from '../state/store';
+import { ops } from '../pdf/opsClient';
+import { openBytes, runExportOp, type DocState } from '../state/store';
 
 /** Export dropdown: PDF → images / plain text / OCR. */
 export function ExportMenu({ onOcr }: { onOcr: () => void }) {
@@ -108,8 +109,8 @@ export function OcrDialog({ doc, onClose }: { doc: DocState; onClose: () => void
         {results && (
           <>
             <p className="hint">
-              Recognized {results.length} page(s). Save the text below — building a searchable PDF
-              (baking an invisible text layer back in) isn’t available via the iLovePDF API.
+              Recognized {results.length} page(s). Save the text, or bake an invisible searchable
+              text layer back into the PDF (looks identical, but is now selectable).
             </p>
             <textarea
               className="input"
@@ -126,7 +127,7 @@ export function OcrDialog({ doc, onClose }: { doc: DocState; onClose: () => void
           {results && (
             <>
               <button
-                className="btn primary"
+                className="btn"
                 onClick={() =>
                   void saveBytesAs(
                     doc.fileName.replace(/\.pdf$/i, '-ocr.txt'),
@@ -136,6 +137,20 @@ export function OcrDialog({ doc, onClose }: { doc: DocState; onClose: () => void
                 }
               >
                 Save as .txt
+              </button>
+              <button
+                className="btn primary"
+                onClick={async () => {
+                  const bytes = await runExportOp('Building searchable PDF', () =>
+                    ops.searchableLayer(doc.bytes, results),
+                  );
+                  if (bytes) {
+                    onClose();
+                    await openBytes(doc.fileName.replace(/\.pdf$/i, '-searchable.pdf'), bytes);
+                  }
+                }}
+              >
+                Make searchable PDF
               </button>
             </>
           )}

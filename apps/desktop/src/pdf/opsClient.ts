@@ -1,111 +1,94 @@
-import { createILovePdfClient } from '@pdfx/ilovepdf-api';
+import type { OpRequest, OpResponse } from './ops.worker';
 
-/** Public iLovePDF project ID. The private key is never exposed to this renderer. */
-const PUBLIC_KEY = 'project_public_3e6ebf6c7fe3800ecb67d9305ac66106_5TVOU661190bc6af1630f8f86d5ae8d465313';
+/** Promise RPC over the ops worker. One worker instance for the app. */
+const worker = new Worker(new URL('./ops.worker.ts', import.meta.url), { type: 'module' });
 
-const client = createILovePdfClient({
-  publicKey: PUBLIC_KEY,
-  region: 'in',
-  // Packaged Electron obtains an HMAC-signed, one-hour token from the main
-  // process. Resolved per call because the bridge is absent in plain-browser
-  // development, where a nullish token falls back to iLovePDF's /auth flow.
-  tokenProvider: async () => (globalThis as unknown as Partial<Window>).pdfx?.apiToken?.(),
-});
+let nextId = 1;
+const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 
-const pdf = (bytes: Uint8Array, name = 'document.pdf', rotate?: 0 | 90 | 180 | 270) => ({
-  name,
-  bytes,
-  mimeType: 'application/pdf',
-  rotate,
-});
+worker.onmessage = (e: MessageEvent<OpResponse>) => {
+  const res = e.data;
+  const entry = pending.get(res.id);
+  if (!entry) return;
+  pending.delete(res.id);
+  if (!res.ok) entry.reject(new Error(res.message));
+  else if ('bytes' in res) entry.resolve(res.bytes);
+  else entry.resolve(res.data);
+};
 
-function unsupported<T>(name: string): Promise<T> {
-  return Promise.reject(new Error(`${name} is not available in the iLovePDF API workflow.`));
+// A crashed worker never answers; fail every pending call instead of hanging the UI.
+worker.onerror = (e: ErrorEvent) => {
+  const error = new Error(e.message || 'The PDF worker stopped unexpectedly.');
+  for (const entry of pending.values()) entry.reject(error);
+  pending.clear();
+};
+
+// Omit over a discriminated union must distribute, or only common keys survive.
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+function callRaw(req: DistributiveOmit<OpRequest, 'id'>): Promise<unknown> {
+  const id = nextId++;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    worker.postMessage({ ...req, id });
+  });
 }
 
-function position(position: import('@pdfx/core').NumberPosition): { vertical: 'top' | 'bottom'; horizontal: 'left' | 'center' | 'right' } {
-  const [vertical, horizontal] = position.split('-') as ['top' | 'bottom', 'left' | 'center' | 'right'];
-  return { vertical, horizontal };
+function call(req: DistributiveOmit<OpRequest, 'id'>): Promise<Uint8Array> {
+  return callRaw(req) as Promise<Uint8Array>;
 }
 
-/** All document mutations in the desktop UI now use iLovePDF's REST API. */
+// Bytes are copied (not transferred) so callers keep their working copy for undo.
 export const ops = {
-  merge: (sources: Uint8Array[]) => client.process('merge', sources.map((bytes, index) => pdf(bytes, `merge-${index + 1}.pdf`))),
+  merge: (sources: Uint8Array[]) => call({ op: 'merge', sources: sources.map((s) => s.slice()) }),
   splitRange: (bytes: Uint8Array, range: string) =>
-    client.process('split', [pdf(bytes)], { split_mode: 'ranges', ranges: range, merge_after: true }),
-  /** Returns ZIP archive bytes, not a PDF: iLovePDF packages multi-file output. */
-  splitAll: async (bytes: Uint8Array, baseName: string): Promise<Uint8Array> => {
-    const result = await client.processDetailed('split', [pdf(bytes)], {
-      split_mode: 'fixed_range',
-      fixed_range: 1,
-      packaged_filename: baseName || 'pages',
-    });
-    if (!result.archive) {
-      throw new Error('iLovePDF returned a single PDF: a one-page document cannot be split.');
-    }
-    return result.bytes;
-  },
+    call({ op: 'splitRange', bytes: bytes.slice(), range }),
+  splitAll: (bytes: Uint8Array, baseName: string) =>
+    call({ op: 'splitAll', bytes: bytes.slice(), baseName }),
   deletePages: (bytes: Uint8Array, indices: number[]) =>
-    client.process('split', [pdf(bytes)], { split_mode: 'remove_pages', remove_pages: indices.map((i) => i + 1).join(',') }),
+    call({ op: 'deletePages', bytes: bytes.slice(), indices }),
   extractPages: (bytes: Uint8Array, indices: number[]) =>
-    client.process('split', [pdf(bytes)], { split_mode: 'ranges', ranges: indices.map((i) => i + 1).join(','), merge_after: true }),
-  reorderPages: (_bytes: Uint8Array, _newOrder: number[]) => unsupported<Uint8Array>('Page reordering'),
+    call({ op: 'extractPages', bytes: bytes.slice(), indices }),
+  reorderPages: (bytes: Uint8Array, newOrder: number[]) =>
+    call({ op: 'reorderPages', bytes: bytes.slice(), newOrder }),
   rotatePages: (bytes: Uint8Array, delta: 90 | 180 | 270, indices?: number[]) =>
-    indices?.length
-      ? unsupported<Uint8Array>('Rotating selected pages')
-      : client.process('rotate', [pdf(bytes, 'document.pdf', delta)]),
+    call({ op: 'rotatePages', bytes: bytes.slice(), delta, indices }),
   compress: (bytes: Uint8Array, preset: 'low' | 'medium' | 'high') =>
-    client.process('compress', [pdf(bytes)], {
-      compression_level: preset === 'high' ? 'extreme' : preset === 'medium' ? 'recommended' : 'low',
-    }),
-  compressTarget: (_bytes: Uint8Array, _targetBytes: number) =>
-    unsupported<import('@pdfx/core').TargetSizeResult>('Target-size compression'),
-  normalize: (_bytes: Uint8Array, _size: import('@pdfx/core').PaperSize) => unsupported<Uint8Array>('Page-size normalization'),
+    call({ op: 'compress', bytes: bytes.slice(), preset }),
+  compressTarget: (bytes: Uint8Array, targetBytes: number) =>
+    callRaw({ op: 'compressTarget', bytes: bytes.slice(), targetBytes }) as Promise<
+      import('@pdfx/core').TargetSizeResult
+    >,
+  normalize: (bytes: Uint8Array, size: import('@pdfx/core').PaperSize) =>
+    call({ op: 'normalize', bytes: bytes.slice(), size }),
   setTitle: (bytes: Uint8Array, title: string) =>
-    client.process('rotate', [pdf(bytes)], { metas: { Title: title } }),
-  searchableLayer: (_bytes: Uint8Array, _pages: import('@pdfx/core').OcrPageResult[]) =>
-    unsupported<Uint8Array>('Searchable text layers'),
-  addText: (_bytes: Uint8Array, _items: import('@pdfx/core').TextItem[]) => unsupported<Uint8Array>('Text editing'),
-  addMarkups: (_bytes: Uint8Array, _markups: import('@pdfx/core').Markup[]) => unsupported<Uint8Array>('Markup editing'),
-  addStrokes: (_bytes: Uint8Array, _strokes: import('@pdfx/core').Stroke[]) => unsupported<Uint8Array>('Drawing'),
-  addStamps: (_bytes: Uint8Array, _stamps: import('@pdfx/core').Stamp[]) => unsupported<Uint8Array>('Image placement'),
-  pageNumbers: (bytes: Uint8Array, options: import('@pdfx/core').PageNumberOptions) => {
-    const placement = position(options.position);
-    // startAt is the 0-based first page to stamp, not the first label value.
-    const firstPage = Math.max(0, Math.trunc(options.startAt ?? 0));
-    return client.process('pagenumber', [pdf(bytes)], {
-      pages: firstPage > 0 ? `${firstPage + 1}-end` : 'all',
-      starting_number: firstPage + 1,
-      vertical_position: placement.vertical,
-      horizontal_position: placement.horizontal,
-      text: (options.format ?? 'Page {n} of {total}').replaceAll('{total}', '{p}'),
-      font_size: options.size ?? 10,
-    });
-  },
+    call({ op: 'setTitle', bytes: bytes.slice(), title }),
+  searchableLayer: (bytes: Uint8Array, pages: import('@pdfx/core').OcrPageResult[]) =>
+    call({ op: 'searchableLayer', bytes: bytes.slice(), pages }),
+  addText: (bytes: Uint8Array, items: import('@pdfx/core').TextItem[]) =>
+    call({ op: 'addText', bytes: bytes.slice(), items }),
+  addMarkups: (bytes: Uint8Array, markups: import('@pdfx/core').Markup[]) =>
+    call({ op: 'addMarkups', bytes: bytes.slice(), markups }),
+  addStrokes: (bytes: Uint8Array, strokes: import('@pdfx/core').Stroke[]) =>
+    call({ op: 'addStrokes', bytes: bytes.slice(), strokes }),
+  addStamps: (bytes: Uint8Array, stamps: import('@pdfx/core').Stamp[]) =>
+    call({ op: 'addStamps', bytes: bytes.slice(), stamps }),
+  pageNumbers: (bytes: Uint8Array, options: import('@pdfx/core').PageNumberOptions) =>
+    call({ op: 'pageNumbers', bytes: bytes.slice(), options }),
   watermark: (bytes: Uint8Array, options: import('@pdfx/core').WatermarkOptions) =>
-    options.text
-      ? client.process('watermark', [pdf(bytes)], {
-          mode: 'text',
-          text: options.text,
-          pages: 'all',
-          mosaic: false,
-          vertical_position: 'middle',
-          horizontal_position: 'center',
-          rotation: options.rotationDegrees ?? 45,
-          // iLovePDF's `transparency` is a percentage of opacity, range 1-100.
-          transparency: Math.min(100, Math.max(1, Math.round((options.opacity ?? 0.15) * 100))),
-          ...(options.size ? { font_size: options.size } : {}),
-        })
-      : unsupported<Uint8Array>('Image watermarking'),
-  crop: (_bytes: Uint8Array, _box: import('@pdfx/core').Rect, _indices?: number[]) => unsupported<Uint8Array>('PDF cropping'),
-  replacePages: (_bytes: Uint8Array, _replacements: import('@pdfx/core').PageImageReplacement[]) => unsupported<Uint8Array>('Redaction'),
+    call({ op: 'watermark', bytes: bytes.slice(), options }),
+  crop: (bytes: Uint8Array, box: import('@pdfx/core').Rect, indices?: number[]) =>
+    call({ op: 'crop', bytes: bytes.slice(), box, indices }),
+  replacePages: (bytes: Uint8Array, replacements: import('@pdfx/core').PageImageReplacement[]) =>
+    call({ op: 'replacePages', bytes: bytes.slice(), replacements }),
   imagesToPdf: (images: import('@pdfx/core').ImageInput[], pageSize: import('@pdfx/core').ImagePageSize) =>
-    client.process('imagepdf', images.map((image, index) => ({
-      name: `image-${index + 1}.${image.type}`,
-      bytes: image.bytes,
-      mimeType: image.type === 'png' ? 'image/png' : 'image/jpeg',
-    })), { pagesize: pageSize === 'a4' ? 'A4' : pageSize, merge_after: true }),
-  listFields: (_bytes: Uint8Array) => unsupported<import('@pdfx/core').FieldInfo[]>('Form fields'),
-  fillFields: (_bytes: Uint8Array, _values: import('@pdfx/core').FieldValue[]) => unsupported<Uint8Array>('Form filling'),
-  createFields: (_bytes: Uint8Array, _specs: import('@pdfx/core').NewFieldSpec[]) => unsupported<Uint8Array>('Form creation'),
+    call({ op: 'imagesToPdf', images, pageSize }),
+  listFields: (bytes: Uint8Array) =>
+    callRaw({ op: 'listFields', bytes: bytes.slice() }) as Promise<
+      import('@pdfx/core').FieldInfo[]
+    >,
+  fillFields: (bytes: Uint8Array, values: import('@pdfx/core').FieldValue[]) =>
+    call({ op: 'fillFields', bytes: bytes.slice(), values }),
+  createFields: (bytes: Uint8Array, specs: import('@pdfx/core').NewFieldSpec[]) =>
+    call({ op: 'createFields', bytes: bytes.slice(), specs }),
 };

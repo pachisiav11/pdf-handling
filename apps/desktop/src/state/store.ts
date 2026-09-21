@@ -205,7 +205,7 @@ export function setBusy(label: string | null): void {
   emit({ busy: label });
 }
 
-// ---- mutations (all via the iLovePDF API; snapshot for undo) ----
+// ---- mutations (all via worker; snapshot for undo) ----
 
 async function mutateActive(
   label: string,

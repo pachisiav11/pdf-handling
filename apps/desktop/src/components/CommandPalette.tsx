@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { actions, openDialog, setPaletteOpen, useAppState } from '../state/store';
+import {
+  actions,
+  openDialog,
+  setPaletteOpen,
+  toggleRedactMode,
+  useAppState,
+} from '../state/store';
 import { openViaDialog, saveActiveDoc } from '../lib/files';
 import { exportImagesFlow, exportTextFlow } from '../lib/convert';
 
@@ -38,15 +44,15 @@ export function CommandPalette() {
       { id: 'save', label: 'Save', shortcut: 'Ctrl+S', enabled: hasDoc, run: withClose(() => void saveActiveDoc()) },
       { id: 'merge', label: 'Merge open documents…', shortcut: 'Ctrl+M', enabled: multiDoc, run: () => openDialog('merge') },
       { id: 'split', label: 'Split…', shortcut: 'Ctrl+Shift+S', enabled: hasDoc, run: () => openDialog('split') },
-      { id: 'rotate', label: 'Rotate whole document 90°', shortcut: 'Ctrl+R', enabled: hasDoc && !hasSel, run: withClose(() => void actions.rotateSelection(90)) },
+      { id: 'rotate', label: 'Rotate selected 90°', shortcut: 'Ctrl+R', enabled: hasDoc, run: withClose(() => void actions.rotateSelection(90)) },
       { id: 'delete', label: 'Delete selected page(s)', shortcut: 'Ctrl+D', enabled: hasSel, run: withClose(() => void actions.deleteSelection()) },
       { id: 'extract', label: 'Extract selected to new document', shortcut: 'Ctrl+E', enabled: hasSel, run: withClose(() => void actions.extractSelection()) },
-      { id: 'compress', label: 'Compress…', shortcut: 'Ctrl+Shift+C', enabled: hasDoc, run: () => openDialog('compress') },
+      { id: 'compress', label: 'Compress (preset or target size)…', shortcut: 'Ctrl+Shift+C', enabled: hasDoc, run: () => openDialog('compress') },
       { id: 'watermark', label: 'Add watermark…', shortcut: 'Ctrl+Shift+W', enabled: hasDoc, run: () => openDialog('watermark') },
       { id: 'pagenumbers', label: 'Add page numbers…', enabled: hasDoc, run: () => openDialog('pagenumbers') },
-      { id: 'normalize', label: 'Normalize page size — unavailable (iLovePDF API)', enabled: false, run: () => undefined },
+      { id: 'normalize', label: 'Normalize page size…', enabled: hasDoc, run: () => openDialog('normalize') },
       { id: 'metadata', label: 'Document properties (title)…', enabled: hasDoc, run: () => openDialog('metadata') },
-      { id: 'redact', label: 'Redaction — unavailable (iLovePDF API)', enabled: false, run: () => undefined },
+      { id: 'redact', label: `Redaction mode: ${state.redactMode ? 'on' : 'off'}`, shortcut: 'Ctrl+Shift+R', enabled: hasDoc, run: () => toggleRedactMode() },
       { id: 'batch', label: 'Batch process multiple files…', enabled: true, run: () => openDialog('batch') },
       { id: 'ocr', label: 'OCR scanned pages…', enabled: hasDoc, run: () => openDialog('ocr') },
       { id: 'export-text', label: 'Export text → .txt', enabled: hasDoc, run: withClose(() => void exportTextFlow()) },
@@ -54,7 +60,7 @@ export function CommandPalette() {
       { id: 'undo', label: doc?.history.length ? `Undo ${doc.history[doc.history.length - 1]!.label}` : 'Undo', shortcut: 'Ctrl+Z', enabled: !!doc?.history.length, run: withClose(() => actions.undo()) },
       { id: 'redo', label: doc?.future.length ? `Redo ${doc.future[doc.future.length - 1]!.label}` : 'Redo', shortcut: 'Ctrl+Shift+Z', enabled: !!doc?.future.length, run: withClose(() => actions.redo()) },
     ];
-  }, [hasDoc, hasSel, multiDoc, doc]);
+  }, [hasDoc, hasSel, multiDoc, state.redactMode, doc]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

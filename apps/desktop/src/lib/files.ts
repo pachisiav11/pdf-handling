@@ -9,7 +9,6 @@ interface OpenedFile {
 declare global {
   interface Window {
     pdfx: {
-      apiToken?(): Promise<string>;
       openPdfs(): Promise<OpenedFile[]>;
       openImages(): Promise<OpenedFile[]>;
       savePdf(defaultName: string, bytes: ArrayBuffer, extension?: string): Promise<string | null>;

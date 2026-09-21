@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- INTERNET is required for the app's own use: every PDF operation is
-         processed remotely via the iLovePDF API (upload, process, download). -->
+    <!-- INTERNET is required only so the debug build can reach the Metro dev
+         server. The app makes no network calls of its own — fully offline. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Legacy storage for saving to Downloads on Android 9 and older; on
          Android 10+ MediaStore needs no permission. -->

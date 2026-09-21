@@ -36,7 +36,9 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [renderDoc, setRenderDoc] = useState<PDFDocumentProxy | null>(null);
+  const [loaded, setLoaded] = useState<{ version: number; doc: PDFDocumentProxy } | null>(null);
+  // Never render from a previous version's document: getRenderDoc destroys it.
+  const renderDoc = loaded?.version === doc.version ? loaded.doc : null;
   const [zoom, setZoom] = useState(1);
   const [baseWidth, setBaseWidth] = useState(612);
   const [pageSize, setPageSize] = useState({ w: 612, h: 792 });
@@ -105,7 +107,9 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
 
   useEffect(() => {
     let alive = true;
-    getRenderDoc(doc.id, doc.version, doc.bytes).then((d) => alive && setRenderDoc(d));
+    getRenderDoc(doc.id, doc.version, doc.bytes).then(
+      (d) => alive && setLoaded({ version: doc.version, doc: d }),
+    );
     return () => {
       alive = false;
     };
@@ -114,13 +118,16 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
   useEffect(() => {
     if (!renderDoc) return;
     let alive = true;
-    renderDoc.getPage(page + 1).then((p) => {
-      if (!alive) return;
-      const vp = p.getViewport({ scale: 1 });
-      setPageSize({ w: vp.width, h: vp.height });
-      const paneW = wrapRef.current?.clientWidth ?? 800;
-      setBaseWidth(Math.min(paneW - 64, vp.width * 1.4));
-    });
+    renderDoc
+      .getPage(page + 1)
+      .then((p) => {
+        if (!alive) return;
+        const vp = p.getViewport({ scale: 1 });
+        setPageSize({ w: vp.width, h: vp.height });
+        const paneW = wrapRef.current?.clientWidth ?? 800;
+        setBaseWidth(Math.min(paneW - 64, vp.width * 1.4));
+      })
+      .catch((err) => alive && console.error('[pdfx] viewer page load failed:', err));
     return () => {
       alive = false;
     };
@@ -327,13 +334,9 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
     });
   };
 
-  const UNAVAILABLE = 'Not available — this tool requires local processing, which the iLovePDF API workflow does not support.';
-
   const toolBtn = (m: Exclude<EditMode, null>, label: string) => (
     <button
       className={`btn${mode === m ? ' primary' : ''}`}
-      disabled
-      title={UNAVAILABLE}
       onClick={() => {
         if (mode === m) {
           discard();
@@ -371,9 +374,6 @@ export function Viewer({ doc, page }: { doc: DocState; page: number }) {
         {toolBtn('crop', 'Crop')}
         {toolBtn('redact', 'Redact')}
         {toolBtn('field', 'Field')}
-        <span className="hint" title={UNAVAILABLE}>
-          Page editing tools aren’t available via the iLovePDF API.
-        </span>
         {mode === 'highlight' && (
           <select className="select" value={markupKind} onChange={(e) => setMarkupKind(e.target.value as MarkupKind)}>
             <option value="highlight">Highlight</option>

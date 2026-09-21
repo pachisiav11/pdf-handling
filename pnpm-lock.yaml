@@ -32,9 +32,6 @@ importers:
       '@napi-rs/canvas':
         specifier: ^0.1.65
         version: 0.1.100
-      '@pdfx/ilovepdf-api':
-        specifier: workspace:*
-        version: link:../../packages/ilovepdf-api
       pdfjs-dist:
         specifier: ^4.8.69
         version: 4.10.38
@@ -99,9 +96,6 @@ importers:
       '@pdfx/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@pdfx/ilovepdf-api':
-        specifier: workspace:*
-        version: link:../../packages/ilovepdf-api
       '@react-native-documents/picker':
         specifier: ^10.1.1
         version: 10.1.7(react-native@0.86.0(@babel/core@7.29.7)(@react-native-community/cli@20.1.0(typescript@5.9.3))(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)

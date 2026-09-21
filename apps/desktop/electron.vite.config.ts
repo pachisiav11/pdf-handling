@@ -36,7 +36,6 @@ export default defineConfig({
     resolve: {
       alias: {
         '@pdfx/core': resolve(__dirname, '../../packages/core/src/index.ts'),
-        '@pdfx/ilovepdf-api': resolve(__dirname, '../../packages/ilovepdf-api/src/index.ts'),
       },
     },
     build: {

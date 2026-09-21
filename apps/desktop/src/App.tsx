@@ -15,7 +15,7 @@ import {
   getState,
   openDialog,
   setPaletteOpen,
-  showNotice,
+  toggleRedactMode,
   useAppState,
 } from './state/store';
 import { openDroppedFiles, openViaDialog, saveActiveDoc } from './lib/files';
@@ -62,14 +62,10 @@ export function App() {
         if (getState().docs.length >= 2) openDialog('merge');
       } else if (mod && k === 'r' && e.shiftKey) {
         e.preventDefault();
-        showNotice('Redaction isn’t available — the iLovePDF API workflow does not support it.');
+        toggleRedactMode();
       } else if (mod && k === 'r') {
         e.preventDefault();
-        if (getState().selection.length) {
-          showNotice('Rotating selected pages isn’t available — clear the selection to rotate the whole document.');
-        } else {
-          void actions.rotateSelection(90);
-        }
+        void actions.rotateSelection(90);
       } else if (mod && k === 'w' && e.shiftKey) {
         e.preventDefault();
         openDialog('watermark');
@@ -98,7 +94,7 @@ export function App() {
         void openDroppedFiles(e.dataTransfer.files);
       }}
     >
-      {doc ? <Workspace doc={doc} /> : <Home />}
+      {doc ? <Workspace key={doc.id} doc={doc} /> : <Home />}
 
       {state.paletteOpen && <CommandPalette />}
 

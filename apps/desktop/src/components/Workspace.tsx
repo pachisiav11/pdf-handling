@@ -77,15 +77,10 @@ export function Workspace({ doc }: { doc: DocState }) {
 
         <button
           className="btn"
-          disabled={selCount > 0}
           onClick={() => void actions.rotateSelection(90)}
-          title={
-            selCount > 0
-              ? 'Rotating selected pages isn’t available via the iLovePDF API — clear the selection to rotate the whole document.'
-              : 'Rotate the whole document 90° clockwise (Ctrl+R)'
-          }
+          title="Rotate 90° clockwise (Ctrl+R)"
         >
-          Rotate all <kbd>Ctrl+R</kbd>
+          Rotate {selCount ? `${selCount} page${selCount > 1 ? 's' : ''}` : 'all'} <kbd>Ctrl+R</kbd>
         </button>
         <button
           className="btn danger"
@@ -112,7 +107,7 @@ export function Workspace({ doc }: { doc: DocState }) {
         <button
           className="btn"
           onClick={() => openDialog('compress')}
-          title="Compress — pick a compression level (Ctrl+Shift+C)"
+          title="Compress — presets or a target size (Ctrl+Shift+C)"
         >
           Compress <kbd>Ctrl+Shift+C</kbd>
         </button>
@@ -126,12 +121,7 @@ export function Workspace({ doc }: { doc: DocState }) {
         >
           Watermark <kbd>Ctrl+Shift+W</kbd>
         </button>
-        <button
-          className="btn"
-          disabled
-          title="Not available — page-size normalization requires local processing, which the iLovePDF API workflow does not support."
-          onClick={() => openDialog('normalize')}
-        >
+        <button className="btn" onClick={() => openDialog('normalize')}>
           Normalize
         </button>
         <button className="btn" onClick={() => openDialog('metadata')}>
@@ -140,28 +130,13 @@ export function Workspace({ doc }: { doc: DocState }) {
         <button className="btn" onClick={() => openDialog('batch')}>
           Batch
         </button>
-        <button
-          className="btn"
-          disabled
-          title="Not available — form fields require local processing, which the iLovePDF API workflow does not support."
-          onClick={() => setFormsOpen((o) => !o)}
-        >
+        <button className="btn" onClick={() => setFormsOpen((o) => !o)}>
           Forms
         </button>
-        <button
-          className="btn"
-          disabled
-          title="Not available — placing a signature image requires local processing, which the iLovePDF API workflow does not support."
-          onClick={() => openDialog('sign')}
-        >
+        <button className="btn" onClick={() => openDialog('sign')}>
           Sign
         </button>
-        <button
-          className="btn"
-          disabled
-          title="Not available — placing an initials image requires local processing, which the iLovePDF API workflow does not support."
-          onClick={() => openDialog('initials')}
-        >
+        <button className="btn" onClick={() => openDialog('initials')}>
           Initials
         </button>
         <ExportMenu onOcr={() => openDialog('ocr')} />
@@ -202,7 +177,7 @@ export function Workspace({ doc }: { doc: DocState }) {
         <span>{(doc.bytes.length / 1024 / 1024).toFixed(2)} MB</span>
         {selCount > 0 && <span>{selCount} selected</span>}
         <span className="spacer" />
-        <span className="cloud-status">● processed via iLovePDF — documents are uploaded to run each operation</span>
+        <span className="offline">● offline — nothing leaves this machine</span>
       </div>
 
       {pendingDialog === 'split' && <SplitDialog doc={doc} onClose={closeDialog} />}

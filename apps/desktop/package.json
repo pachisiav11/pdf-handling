@@ -11,7 +11,6 @@
     "package": "electron-vite build && electron-builder"
   },
   "dependencies": {
-    "@pdfx/ilovepdf-api": "workspace:*",
     "@napi-rs/canvas": "^0.1.65",
     "pdfjs-dist": "^4.8.69",
     "tesseract.js": "^5.1.1"

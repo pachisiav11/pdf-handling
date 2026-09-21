@@ -6,7 +6,7 @@ import { getRenderDoc } from '../pdf/render';
 import { getState, openBytes, runExportOp, setBusy, showNotice } from '../state/store';
 import { saveBytesAs } from './files';
 
-/** Images → PDF: native picker, convert via the API, open the result. */
+/** Images → PDF: native picker, convert in the worker, open the result. */
 export async function imagesToPdfFlow(): Promise<void> {
   let files: Awaited<ReturnType<typeof window.pdfx.openImages>>;
   try {

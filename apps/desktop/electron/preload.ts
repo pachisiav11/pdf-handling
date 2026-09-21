@@ -12,7 +12,6 @@ export interface OcrProgress {
 }
 
 export interface PdfxBridge {
-  apiToken(): Promise<string>;
   openPdfs(): Promise<OpenedFile[]>;
   openImages(): Promise<OpenedFile[]>;
   savePdf(defaultName: string, bytes: ArrayBuffer, extension?: string): Promise<string | null>;
@@ -26,7 +25,6 @@ export interface PdfxBridge {
 }
 
 const bridge: PdfxBridge = {
-  apiToken: () => ipcRenderer.invoke('ilovepdf:token'),
   openPdfs: () => ipcRenderer.invoke('dialog:openPdfs'),
   openImages: () => ipcRenderer.invoke('dialog:openImages'),
   savePdf: (defaultName, bytes, extension) =>

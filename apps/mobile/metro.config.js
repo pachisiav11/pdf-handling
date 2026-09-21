@@ -26,12 +26,6 @@ const config = {
           filePath: path.resolve(workspaceRoot, 'packages/core/src/mobile.ts'),
         };
       }
-      if (moduleName === '@pdfx/ilovepdf-api') {
-        return {
-          type: 'sourceFile',
-          filePath: path.resolve(workspaceRoot, 'packages/ilovepdf-api/src/index.ts'),
-        };
-      }
       return context.resolveRequest(context, moduleName, platform);
     },
   },
